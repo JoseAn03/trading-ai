@@ -47,7 +47,7 @@ paso del plan es probar hipótesis con evidencia, no añadir complejidad a ciega
 
 **Hipótesis a probar (una a la vez, mismo protocolo)**
 
-1. Horizonte distinto (3–7 días) donde el momentum pueda persistir más.
+1. ❌ **Horizonte distinto (3–7 días)** — probada el 2026-10-22: empeora (ver abajo).
 2. Filtro de régimen (tendencia vs rango) para separar periodos.
 3. Features de volatilidad realizada y volumen relativo con ventanas más largas.
 4. Incluir costos variables por volatilidad (slippage proporcional).
@@ -58,3 +58,43 @@ paso del plan es probar hipótesis con evidencia, no añadir complejidad a ciega
 python -m backtests.run_backtest --source live --days 1000 --assets BTC,ETH \
   --threshold 0.55 --train 365 --test 60 --step 60
 ```
+
+---
+
+## 2026-10-22 — Barrido de horizontes (hipótesis 1: rechazada)
+
+**Pregunta:** ¿el momentum persiste mejor en 2–7 días que en 24 h?
+
+**Método:** idéntico protocolo; se cambia solo el horizonte de evaluación
+(`build_samples(..., horizon=h)`). La estrategia opera sin solapar posiciones
+(una entrada cada `h` días) para no contar tres veces la misma apuesta.
+
+**Resultado**
+
+| Horizonte | Log loss | Baseline | ECE | Trades | Retorno neto | Ventanas + | Activos + |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1d | 0.6978 | 0.6931 | 0.0318 | 103 | +7.20 % | 50 % | 1/2 |
+| 2d | 0.7001 | 0.6931 | 0.0450 | 120 | −24.51 % | 50 % | 0/2 |
+| 3d | 0.7051 | 0.6931 | 0.0531 | 105 | −39.05 % | 35 % | 0/2 |
+| 5d | 0.7206 | 0.6931 | 0.1204 | 64 | −56.91 % | 17 % | 0/2 |
+| 7d | 0.7253 | 0.6931 | 0.1496 | 49 | −52.07 % | 22 % | 0/2 |
+
+**Lectura**
+
+- El deterioro es **monótono** en log loss y calibración: 1d → 7d empeora en las
+  dos dimensiones. No hay un horizonte donde aparezca señal.
+- A 2 días desaparece la única ganancia (ETH) y ningún activo queda positivo.
+- A 5–7 días el ECE (0.12–0.15) ya indica probabilidades mal calibradas: el modelo
+  se vuelve más confiado cuando está más equivocado.
+
+**Conclusión:** la hipótesis "24 h es demasiado corto" **queda rechazada**. El
+problema no es el horizonte, es la información de entrada: 5 features de OHLCV
+diario no contienen señal direccional aprovechable. Probar más horizontes sería
+ajustar ruido.
+
+**Implicación para el plan:** el siguiente experimento debe cambiar **qué sabe el
+modelo** (features de régimen y ventanas largas), no cuánto tiempo mira hacia
+adelante. Si eso también falla, el resultado honesto es mantener el sistema en
+`NO_TRADE` por defecto y no pasar a paper trading.
+
+**Reporte completo:** `var/reports/barrido-horizontes-2026-10-22.md`

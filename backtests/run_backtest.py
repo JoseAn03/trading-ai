@@ -90,22 +90,33 @@ def load_series(
 
 
 def evaluate(
-    predictions: list[Prediction], *, threshold: float, cost_rate: float
+    predictions: list[Prediction], *, threshold: float, cost_rate: float, horizon: int = 1
 ) -> dict[str, float]:
     probs = [p.prob for p in predictions]
     labels = [p.label for p in predictions]
     returns = [p.next_return for p in predictions]
 
-    strat = strategy_stats(probs, returns, threshold=threshold, cost_rate=cost_rate)
-    base = [0.5] * len(labels)
-
     by_window: dict[tuple[str, int], list[Prediction]] = {}
     for p in predictions:
         by_window.setdefault((p.asset, p.window), []).append(p)
+
+    # La estrategia opera sin solapar posiciones: una entrada cada `horizon` días.
+    selected: list[Prediction] = []
+    for group in by_window.values():
+        selected.extend(group[:: max(1, horizon)])
+
+    strat = strategy_stats(
+        [p.prob for p in selected],
+        [p.next_return for p in selected],
+        threshold=threshold,
+        cost_rate=cost_rate,
+    )
+    base = [0.5] * len(labels)
+
     window_nets = [
         strategy_stats(
-            [p.prob for p in group],
-            [p.next_return for p in group],
+            [p.prob for p in group[:: max(1, horizon)]],
+            [p.next_return for p in group[:: max(1, horizon)]],
             threshold=threshold,
             cost_rate=cost_rate,
         ).total_net_return
@@ -127,7 +138,7 @@ def evaluate(
         "mean_prob": sum(probs) / len(probs),
         "base_rate": sum(labels) / len(labels),
         "trades": float(strat.trades),
-        "coverage": strat.trades / len(labels),
+        "coverage": strat.trades / len(selected) if selected else 0.0,
         "net_return": strat.total_net_return,
         "avg_net_per_trade": strat.avg_net_per_trade,
         "win_rate": strat.win_rate,
@@ -202,10 +213,16 @@ def build_report(
     per_asset = {}
     pooled: list[Prediction] = []
     for r in results:
-        per_asset[r.asset] = evaluate(r.predictions, threshold=args.threshold, cost_rate=cost_rate)
+        per_asset[r.asset] = evaluate(
+            r.predictions, threshold=args.threshold, cost_rate=cost_rate, horizon=args.horizon
+        )
         pooled.extend(r.predictions)
 
-    pooled_metrics = evaluate(pooled, threshold=args.threshold, cost_rate=cost_rate) if pooled else {}
+    pooled_metrics = (
+        evaluate(pooled, threshold=args.threshold, cost_rate=cost_rate, horizon=args.horizon)
+        if pooled
+        else {}
+    )
     assets_positive = sum(1 for m in per_asset.values() if m["net_return"] > 0)
     if pooled:
         beats, calibrated, profitable, robust, verdict = _verdict(
@@ -219,7 +236,8 @@ def build_report(
         f"# Backtest walk-forward — {generated_at:%Y-%m-%d}",
         "",
         f"**Fuente:** `{args.source}` · **Periodo:** {args.days} días solicitados · "
-        f"**Umbral:** {args.threshold:.2f} · **Costo ida y vuelta:** {cost_rate * 100:.2f}% · "
+        f"**Horizonte:** {args.horizon} día(s) · **Umbral:** {args.threshold:.2f} · "
+        f"**Costo ida y vuelta:** {cost_rate * 100:.2f}% · "
         f"**Ventanas:** train {args.train} / test {args.test} / step {args.step}",
         "",
         "> Un backtest no predice el futuro. Mide si este método, con estos datos y "
@@ -294,7 +312,8 @@ def build_report(
         "## Reproducibilidad",
         "",
         f"```bash\npython -m backtests.run_backtest --source {args.source} --days {args.days} "
-        f"--assets {','.join(r.asset for r in results)} --threshold {args.threshold} "
+        f"--assets {','.join(r.asset for r in results)} --horizon {args.horizon} "
+        f"--threshold {args.threshold} "
         f"--train {args.train} --test {args.test} --step {args.step}\n```",
         "",
         "Predicciones completas: `backtest-YYYY-MM-DD-<ACTIVO>.csv` en esta misma carpeta.",
@@ -306,6 +325,7 @@ def build_report(
         "source": args.source,
         "days": args.days,
         "threshold": args.threshold,
+        "horizon": args.horizon,
         "cost_rate": cost_rate,
         "windows": {"train": args.train, "test": args.test, "step": args.step},
         "assets": {
@@ -332,9 +352,9 @@ def build_report(
 
 def _write_predictions_csv(path: Path, predictions: list[Prediction]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    rows = ["asset,window,timestamp,probability,label,next_return"]
+    rows = ["asset,window,horizon,timestamp,probability,label,next_return"]
     rows += [
-        f"{p.asset},{p.window},{p.ts.isoformat()},{p.prob:.6f},{p.label},{p.next_return:.8f}"
+        f"{p.asset},{p.window},{p.horizon},{p.ts.isoformat()},{p.prob:.6f},{p.label},{p.next_return:.8f}"
         for p in predictions
     ]
     path.write_text("\n".join(rows) + "\n", encoding="utf-8")
@@ -345,6 +365,7 @@ def main() -> None:
     parser.add_argument("--source", choices=["demo", "live", "cache"], default="demo")
     parser.add_argument("--days", type=int, default=1000)
     parser.add_argument("--assets", default="BTC,ETH")
+    parser.add_argument("--horizon", type=int, default=1, help="días hasta el resultado evaluado")
     parser.add_argument("--threshold", type=float, default=0.55)
     parser.add_argument("--train", type=int, default=365)
     parser.add_argument("--test", type=int, default=60)
@@ -372,7 +393,7 @@ def main() -> None:
             continue
         try:
             predictions = walk_forward_predictions(
-                candles, train=args.train, test=args.test, step=args.step
+                candles, train=args.train, test=args.test, step=args.step, horizon=args.horizon
             )
         except ValueError as exc:
             print(f"[aviso] {asset}: {exc}")

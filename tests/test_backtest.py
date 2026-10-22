@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
+from backtests.run_backtest import evaluate
 from backtests.walk_forward import (
+    Prediction,
     build_samples,
     evaluate_with_costs,
     walk_forward,
@@ -78,3 +82,39 @@ def test_no_trades_below_threshold() -> None:
     stats = evaluate_with_costs([0.5, 0.4], [0.01, -0.01], threshold=0.55)
     assert stats["trades"] == 0
     assert stats["net_return"] == 0.0
+
+
+def test_horizon_uses_forward_return_without_leak() -> None:
+    candles = make_candles(120, daily_return=0.01, volatility=0.0)
+    one_day = build_samples(candles, horizon=1)
+    three_days = build_samples(candles, horizon=3)
+    assert len(three_days) == len(one_day) - 2
+    expected = candles[31 + 3].close / candles[31].close - 1
+    assert three_days[0].next_return == pytest.approx(expected)
+
+
+def test_horizon_rejects_zero() -> None:
+    with pytest.raises(ValueError):
+        build_samples(make_candles(60), horizon=0)
+
+
+def test_evaluate_avoids_overlapping_bets() -> None:
+    base = datetime(2026, 1, 1, tzinfo=UTC)
+    preds = [
+        Prediction(
+            window=0,
+            asset="BTC",
+            ts=base + timedelta(days=i),
+            prob=0.9,
+            label=1,
+            next_return=0.01,
+            horizon=3,
+        )
+        for i in range(6)
+    ]
+    daily = evaluate(preds, threshold=0.55, cost_rate=0.0, horizon=1)
+    tri = evaluate(preds, threshold=0.55, cost_rate=0.0, horizon=3)
+    assert daily["trades"] == 6
+    assert tri["trades"] == 2
+    # Las métricas de predicción usan todas las muestras en ambos casos.
+    assert daily["log_loss"] == pytest.approx(tri["log_loss"])

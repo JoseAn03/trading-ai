@@ -35,6 +35,7 @@ class Prediction:
     prob: float
     label: int
     next_return: float
+    horizon: int
 
 
 @dataclass
@@ -85,19 +86,23 @@ class WalkForwardResult:
         }
 
 
-def build_samples(candles: list[Candle], *, min_history: int = 31) -> list[Sample]:
-    """Features en t, etiqueta y retorno de t a t+1."""
+def build_samples(
+    candles: list[Candle], *, min_history: int = 31, horizon: int = 1
+) -> list[Sample]:
+    """Features en t, etiqueta y retorno de t a t+horizon (nunca usa el futuro)."""
+    if horizon < 1:
+        raise ValueError("horizon debe ser >= 1")
     ordered = sorted(candles, key=lambda c: c.ts)
     samples: list[Sample] = []
 
-    for i in range(min_history, len(ordered) - 1):
+    for i in range(min_history, len(ordered) - horizon):
         window = ordered[: i + 1]
         try:
             f = compute_features(window, now=ordered[i].ts)
         except ValueError:
             continue
 
-        current, nxt = ordered[i].close, ordered[i + 1].close
+        current, nxt = ordered[i].close, ordered[i + horizon].close
         samples.append(
             Sample(
                 features={
@@ -116,10 +121,15 @@ def build_samples(candles: list[Candle], *, min_history: int = 31) -> list[Sampl
 
 
 def walk_forward_predictions(
-    candles: list[Candle], *, train: int = 365, test: int = 60, step: int = 60
+    candles: list[Candle],
+    *,
+    train: int = 365,
+    test: int = 60,
+    step: int = 60,
+    horizon: int = 1,
 ) -> list[Prediction]:
     """Predicciones fuera de muestra. Cada una se generó antes de conocer su resultado."""
-    samples = build_samples(candles)
+    samples = build_samples(candles, horizon=horizon)
     if len(samples) < train + test:
         raise ValueError(
             f"muestras insuficientes: {len(samples)} (se requieren {train + test}). "
@@ -149,6 +159,7 @@ def walk_forward_predictions(
                     prob=min(max(float(p), 0.0), 1.0),
                     label=s.label,
                     next_return=s.next_return,
+                    horizon=horizon,
                 )
             )
 
@@ -159,9 +170,16 @@ def walk_forward_predictions(
 
 
 def walk_forward(
-    candles: list[Candle], *, train: int = 60, test: int = 20, step: int = 20
+    candles: list[Candle],
+    *,
+    train: int = 60,
+    test: int = 20,
+    step: int = 20,
+    horizon: int = 1,
 ) -> WalkForwardResult:
-    predictions = walk_forward_predictions(candles, train=train, test=test, step=step)
+    predictions = walk_forward_predictions(
+        candles, train=train, test=test, step=step, horizon=horizon
+    )
 
     result = WalkForwardResult()
     by_window: dict[int, list[Prediction]] = {}
