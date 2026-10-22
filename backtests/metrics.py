@@ -135,3 +135,29 @@ def buy_and_hold(returns: list[float]) -> float:
     for r in returns:
         equity *= 1 + r
     return equity - 1.0
+
+
+def equity_curve(
+    probs: list[float],
+    forward_returns: list[float],
+    *,
+    threshold: float = 0.55,
+    cost_rate: float = 0.002,
+    starting_equity: float = 1.0,
+) -> list[float]:
+    """Curva de capital compuesta; solo opera cuando p >= threshold.
+
+    Devuelve un punto por operacion mas el inicial. Es la misma regla que usa
+    `strategy_stats`, expuesta aparte para poder dibujarla en el panel.
+    """
+    if len(probs) != len(forward_returns):
+        raise ValueError("probs y retornos deben tener la misma longitud")
+
+    equity = starting_equity
+    curve = [equity]
+    for p, r in zip(probs, forward_returns, strict=True):
+        if p < threshold:
+            continue
+        equity *= 1 + (r - cost_rate)
+        curve.append(equity)
+    return curve

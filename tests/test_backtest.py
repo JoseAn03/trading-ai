@@ -11,6 +11,7 @@ from backtests.walk_forward import (
     Prediction,
     build_samples,
     evaluate_with_costs,
+    non_overlapping,
     walk_forward,
     walk_forward_predictions,
 )
@@ -119,6 +120,26 @@ def test_feature_set_v02_uses_long_history_and_columns() -> None:
 def test_unknown_feature_set_rejected() -> None:
     with pytest.raises(ValueError):
         build_samples(make_candles(260), feature_set="v9.9")
+
+
+def test_non_overlapping_keeps_one_bet_per_horizon_and_window() -> None:
+    base = datetime(2026, 1, 1, tzinfo=UTC)
+    preds = [
+        Prediction(
+            window=window,
+            asset="BTC",
+            ts=base + timedelta(days=window * 10 + i),
+            prob=0.9,
+            label=1,
+            next_return=0.01,
+            horizon=3,
+        )
+        for window in (0, 1)
+        for i in range(6)
+    ]
+    selected = non_overlapping(preds, 3)
+    assert len(selected) == 4
+    assert {(p.window, p.ts.day) for p in selected} == {(0, 1), (0, 4), (1, 11), (1, 14)}
 
 
 def test_evaluate_avoids_overlapping_bets() -> None:

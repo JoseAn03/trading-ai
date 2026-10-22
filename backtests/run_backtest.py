@@ -31,7 +31,7 @@ from backtests.metrics import (
     log_loss,
     strategy_stats,
 )
-from backtests.walk_forward import Prediction, walk_forward_predictions
+from backtests.walk_forward import Prediction, non_overlapping, walk_forward_predictions
 from src.config.settings import ROOT, Settings
 from src.data.adapters.base import DataProviderError, StaticAdapter
 from src.data.adapters.binance import BinanceAdapter
@@ -102,9 +102,7 @@ def evaluate(
         by_window.setdefault((p.asset, p.window), []).append(p)
 
     # La estrategia opera sin solapar posiciones: una entrada cada `horizon` días.
-    selected: list[Prediction] = []
-    for group in by_window.values():
-        selected.extend(group[:: max(1, horizon)])
+    selected = non_overlapping(predictions, horizon)
 
     strat = strategy_stats(
         [p.prob for p in selected],

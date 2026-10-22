@@ -181,6 +181,19 @@ def walk_forward_predictions(
     return predictions
 
 
+def non_overlapping(predictions: list[Prediction], horizon: int = 1) -> list[Prediction]:
+    """Una entrada cada `horizon` dias dentro de cada ventana y activo.
+
+    Evita contar la misma apuesta varias veces cuando el retorno evaluado cubre
+    varios dias. Es la regla que usan las metricas y el panel.
+    """
+    step = max(1, horizon)
+    grouped: dict[tuple[str, int], list[Prediction]] = {}
+    for prediction in predictions:
+        grouped.setdefault((prediction.asset, prediction.window), []).append(prediction)
+    return [p for group in grouped.values() for p in group[::step]]
+
+
 def walk_forward(
     candles: list[Candle],
     *,

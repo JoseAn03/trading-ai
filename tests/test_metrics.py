@@ -10,6 +10,7 @@ from backtests.metrics import (
     brier_score,
     buy_and_hold,
     calibration_table,
+    equity_curve,
     expected_calibration_error,
     log_loss,
     strategy_stats,
@@ -72,3 +73,14 @@ def test_strategy_never_trades_below_threshold() -> None:
 
 def test_buy_and_hold_compounds() -> None:
     assert buy_and_hold([0.1, -0.1]) == pytest.approx(0.99 - 1)
+
+
+def test_equity_curve_compounds_only_above_threshold() -> None:
+    curve = equity_curve([0.6, 0.5, 0.7], [0.01, -0.02, 0.03], threshold=0.55, cost_rate=0.002)
+    assert curve[0] == pytest.approx(1.0)
+    assert len(curve) == 3
+    assert curve[-1] == pytest.approx(1.008 * 1.028, rel=1e-9)
+
+
+def test_equity_curve_without_trades_is_flat() -> None:
+    assert equity_curve([0.1, 0.2], [0.5, -0.5], threshold=0.55) == [1.0]
