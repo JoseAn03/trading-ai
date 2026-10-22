@@ -1,0 +1,92 @@
+{
+  "generated_at": "2026-10-22T08:10:54.687520+00:00",
+  "source": "live",
+  "days": 1000,
+  "threshold": 0.55,
+  "cost_rate": 0.002,
+  "windows": {
+    "train": 365,
+    "test": 60,
+    "step": 60
+  },
+  "assets": {
+    "BTC": {
+      "source": "binance",
+      "candles": 999,
+      "windows": 10,
+      "metrics": {
+        "samples": 600.0,
+        "windows": 10.0,
+        "positive_windows": 0.4,
+        "log_loss": 0.6972748133393745,
+        "log_loss_baseline": 0.6931471805599468,
+        "brier": 0.2520289548662626,
+        "accuracy": 0.49333333333333335,
+        "ece": 0.038448087894053594,
+        "mean_prob": 0.506816695734957,
+        "base_rate": 0.5,
+        "trades": 70.0,
+        "coverage": 0.11666666666666667,
+        "net_return": -0.08820513757138493,
+        "avg_net_per_trade": -0.0008744222456803016,
+        "win_rate": 0.4714285714285714,
+        "profit_factor": 0.9193924835558279,
+        "max_drawdown": 0.239221478597404,
+        "buy_and_hold": -0.02743842766221294
+      }
+    },
+    "ETH": {
+      "source": "binance",
+      "candles": 999,
+      "windows": 10,
+      "metrics": {
+        "samples": 600.0,
+        "windows": 10.0,
+        "positive_windows": 0.6,
+        "log_loss": 0.6983809376569571,
+        "log_loss_baseline": 0.6931471805599468,
+        "brier": 0.2524846087244035,
+        "accuracy": 0.5066666666666667,
+        "ece": 0.02650056295421789,
+        "mean_prob": 0.49089128776512825,
+        "base_rate": 0.5066666666666667,
+        "trades": 33.0,
+        "coverage": 0.055,
+        "net_return": 0.17574891140976745,
+        "avg_net_per_trade": 0.005563214419366197,
+        "win_rate": 0.5151515151515151,
+        "profit_factor": 1.6094023884370134,
+        "max_drawdown": 0.07737319112340918,
+        "buy_and_hold": 0.030662951501689406
+      }
+    }
+  },
+  "pooled": {
+    "samples": 1200.0,
+    "windows": 20.0,
+    "positive_windows": 0.5,
+    "log_loss": 0.6978278754981659,
+    "log_loss_baseline": 0.6931471805599252,
+    "brier": 0.25225678179533345,
+    "accuracy": 0.5,
+    "ece": 0.03183145865804161,
+    "mean_prob": 0.49885399175004297,
+    "base_rate": 0.5033333333333333,
+    "trades": 103.0,
+    "coverage": 0.08583333333333333,
+    "net_return": 0.07204181692946299,
+    "avg_net_per_trade": 0.0011881215402083822,
+    "win_rate": 0.4854368932038835,
+    "profit_factor": 1.1153832669038255,
+    "max_drawdown": 0.239221478597404,
+    "buy_and_hold": 0.002383180662787643
+  },
+  "verdict": {
+    "beats_baseline": false,
+    "calibrated": true,
+    "profitable": true,
+    "robust": false,
+    "assets_positive": 1,
+    "text": "No supera al baseline trivial: el modelo no aporta información útil. Cualquier ganancia es ruido o suerte de una muestra concreta."
+  }
+}

@@ -427,10 +427,18 @@ class Store:
     def latest_signals(self, limit: int = 20) -> list[dict]:
         with self.connect() as conn:
             rows = conn.execute(
-                """SELECT asset, horizon, timestamp, signal, probability_net,
+                """SELECT asset, horizon, timestamp, data_timestamp, signal, probability_net,
                           expected_ret_net, confidence, rank_score, rank_position,
-                          is_actionable, data_quality
+                          is_actionable, data_quality, model_version, payload
                    FROM signals ORDER BY timestamp DESC, rank_position ASC LIMIT ?""",
+                (limit,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def recent_audit(self, limit: int = 20) -> list[dict]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT at, actor, action, detail FROM audit_events ORDER BY id DESC LIMIT ?",
                 (limit,),
             ).fetchall()
         return [dict(r) for r in rows]

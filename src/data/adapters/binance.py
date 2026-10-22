@@ -11,6 +11,7 @@ el reporte y revisarlo si se usa para decisiones reales).
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 
 import httpx
@@ -23,9 +24,10 @@ from src.schemas.market import Candle
 class BinanceAdapter(MarketDataAdapter):
     name = "binance"
     max_calls_per_minute = 60
-    base_url = "https://api.binance.com/api/v3"
+    default_base_url = "https://api.binance.com/api/v3"
 
     def __init__(self, timeout: float = 20.0, client: httpx.Client | None = None) -> None:
+        self.base_url = os.getenv("BINANCE_BASE_URL", self.default_base_url).rstrip("/")
         self._client = client or httpx.Client(
             timeout=timeout, headers={"accept": "application/json", "user-agent": "trading-ai/0.1"}
         )

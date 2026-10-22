@@ -1,0 +1,121 @@
+name: daily
+
+on:
+  schedule:
+    - cron: "15 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: daily
+  cancel-in-progress: false
+
+jobs:
+  update-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    env:
+      BINANCE_BASE_URL: https://data-api.binance.vision/api/v3
+      TZ: UTC
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install
+        run: python -m pip install -e .
+
+      - name: Check market data endpoint
+        run: |
+          python - <<'PY'
+          import os
+          import httpx
+
+          base = os.environ["BINANCE_BASE_URL"].rstrip("/")
+          response = httpx.get(
+              f"{base}/klines",
+              params={"symbol": "BTCUSDT", "interval": "1d", "limit": 2},
+              timeout=30,
+          )
+          print("status:", response.status_code)
+          print(response.text[:300])
+          response.raise_for_status()
+          PY
+
+      - name: Run daily engine
+        run: |
+          mkdir -p var/reports
+          python -m jobs.daily_run --live
+
+      - name: Snapshot SQLite
+        run: |
+          python - <<'PY'
+          import os
+          import sqlite3
+          from pathlib import Path
+
+          source = Path("var/trading.db")
+          snapshot = Path("var/trading.snapshot.db")
+          snapshot.unlink(missing_ok=True)
+
+          connection = sqlite3.connect(source)
+          try:
+              connection.execute("VACUUM INTO ?", (str(snapshot),))
+          finally:
+              connection.close()
+
+          check = sqlite3.connect(snapshot)
+          try:
+              result = check.execute("PRAGMA integrity_check").fetchone()[0]
+          finally:
+              check.close()
+          if result != "ok":
+              raise SystemExit(f"integrity_check: {result}")
+
+          for suffix in ("-wal", "-shm"):
+              Path(str(source) + suffix).unlink(missing_ok=True)
+          os.replace(snapshot, source)
+          print("snapshot bytes:", source.stat().st_size, "integrity:", result)
+          PY
+
+      - name: Export static PWA
+        run: python -m jobs.export_static --out dist
+
+      - name: Persist state
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f var/trading.db var/reports
+          if git diff --cached --quiet; then
+            echo "Sin cambios de estado"
+          else
+            git commit -m "chore: estado diario $(date -u +%Y-%m-%d)"
+            git push
+          fi
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
