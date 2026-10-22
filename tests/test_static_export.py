@@ -25,6 +25,7 @@ def test_export_static_contains_latest_signal_and_pwa_assets(tmp_path):
             ts=NOW,
         )
     )
+    store.audit("test", "report_generated", r"C:\Users\Andres\trading-ai\var\reports\reporte.md")
 
     out = tmp_path / "dist"
     reports = tmp_path / "reports"
@@ -37,6 +38,8 @@ def test_export_static_contains_latest_signal_and_pwa_assets(tmp_path):
     assert "LONG" in html
     assert "NO TRADE" in html
     assert "history.replaceState" not in html
+    assert "C:\\Users" not in html
+    assert "reporte.md" in html
     assert (out / "manifest.webmanifest").exists()
     assert (out / "sw.js").read_text(encoding="utf-8").startswith("\nconst CACHE")
     assert (out / "icon-192.png").read_bytes().startswith(b"\x89PNG")

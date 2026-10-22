@@ -665,6 +665,13 @@ def _risk_panel() -> str:
     )
 
 
+def _clean_detail(value: object) -> str:
+    text = str(value)
+    if "\\" in text or "/" in text:
+        text = text.replace("\\", "/").rsplit("/", 1)[-1]
+    return text[:120]
+
+
 def _audit_panel(store: Store) -> str:
     try:
         events = store.recent_audit(15)
@@ -675,7 +682,7 @@ def _audit_panel(store: Store) -> str:
     rows = "".join(
         f"<tr><td>{_safe(_fmt_ts(row['at'], '%d %b %H:%M'))}</td>"
         f"<td>{_safe(row['actor'])}</td><td>{_safe(row['action'])}</td>"
-        f"<td>{_safe(str(row['detail'])[:120])}</td></tr>"
+        f"<td>{_safe(_clean_detail(row['detail']))}</td></tr>"
         for row in events
     )
     return (
@@ -803,6 +810,7 @@ def export_static(*, store: Store, out_dir: Path, reports_dir: Path, now: dateti
       <div class="notice {status_class}">{_safe(status)}</div>
       {'<div class="notice" style="margin-top:8px">El ultimo dato tiene mas de 36 h. Revisar la corrida diaria antes de leerlo.</div>' if stale else ''}
       <div class="kpis" style="margin-top:10px">{kpis}</div>
+      <div class="small muted" style="margin-top:10px">Paper en sombra y sin ventaja demostrada en el backtest. Esto es apoyo a decisiones, no una recomendacion de compra o venta.</div>
       <h2>Senales de hoy</h2>
       {signals_html}
       {report_links}

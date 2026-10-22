@@ -18,6 +18,61 @@ Plataforma personal de **apoyo a decisiones** para cripto. No adivina el precio:
 | 6. IA de explicación | ✅ determinista + LLM validado con guardia de cifras y fallback; entrega Telegram opcional |
 | 7. Operación 24/7 + agente | ⛔ no empezado (a propósito) |
 
+## App en la nube (sin PC)
+
+El panel también se publica como **PWA** en GitHub Pages:
+
+**https://josean03.github.io/trading-ai/**
+
+- Se actualiza sola todos los días: GitHub Actions corre la ingesta, el motor,
+  el paper trading y el exportador, y publica el sitio.
+- No necesita la PC encendida ni la misma red.
+- Horario: `15 0 * * *` UTC (después del cierre diario de Binance). GitHub puede
+  demorar el cron unos minutos.
+- Costo: **USD 0** (repositorio público; GitHub Actions y Pages incluidos).
+- Es una **vista móvil de solo lectura** generada desde la misma SQLite. El panel
+  Streamlit completo sigue disponible en local.
+- No incluye claves ni ejecución real. En la nube el LLM está apagado: la
+  explicación es determinista.
+
+### Instalar en el celular
+
+1. Abrir la URL en Chrome (Android) o Safari (iOS).
+2. Menú del navegador → **Agregar a la pantalla de inicio** / **Instalar app**.
+3. Queda como icono, abre en pantalla completa y funciona con conexión a internet.
+   El service worker guarda la última versión para consulta sin conexión.
+
+### Cómo se actualiza
+
+- Workflow: `.github/workflows/daily.yml` (`schedule` + `workflow_dispatch`).
+- Corre `python -m jobs.daily_run --live` con `BINANCE_BASE_URL` apuntando al
+  mirror público `https://data-api.binance.vision/api/v3` (evita bloqueos
+  geográficos de los runners).
+- Compacta SQLite con `VACUUM INTO` y versiona `var/trading.db` y los reportes
+  diarios con `git add -f` (están en `.gitignore` a propósito para el uso local).
+- Genera `dist/` con `python -m jobs.export_static --out dist` y lo publica con
+  `actions/deploy-pages`.
+
+Disparo manual:
+
+```powershell
+gh workflow run daily.yml --repo JoseAn03/trading-ai
+gh run list --repo JoseAn03/trading-ai --limit 3
+```
+
+Vista local del sitio:
+
+```powershell
+python -m jobs.export_static --out dist
+python -m http.server 8000 --directory dist
+# http://localhost:8000
+```
+
+> **Privacidad:** el repositorio y el sitio son públicos y no tienen login.
+> Cualquiera con la URL puede leer señales, paper y backtests. No hay claves ni
+> datos personales, pero no subir secretos al repo. Si se quiere acceso privado,
+> hay que agregar autenticación o usar un hosting privado.
+
 ## Arranque rápido (Windows)
 
 Requiere **Python 3.11+**. En este equipo no está instalado todavía:
@@ -77,8 +132,8 @@ New-NetFirewallRule -DisplayName "Trading AI Streamlit 8501" -Direction Inbound 
 ```
 
 El panel **no tiene login**: cualquier dispositivo de la misma red puede leerlo. No
-exponer el puerto a internet. Para acceso fuera de casa, usar una VPN privada como
-Tailscale en la PC y el teléfono.
+exponer el puerto a internet. Para acceso fuera de casa, usar la app en la nube
+(sección anterior) o una VPN privada como Tailscale en la PC y el teléfono.
 
 ## Explicación y entrega (fase 6)
 
@@ -119,9 +174,12 @@ trading-ai/
 │   ├── paper_trading/      # simulación persistente (modo sombra)
 │   └── schemas/            # contratos Pydantic
 ├── jobs/daily_run.py       # corrida diaria end-to-end
+├── jobs/export_static.py   # exportador HTML/PWA para GitHub Pages
 ├── backtests/              # walk-forward, métricas y CLI de backtest
 ├── tests/                  # unitarias + integración
 ├── prompts/                # prompts versionados
+├── .github/workflows/      # CI + corrida diaria que publica en Pages
+├── var/                    # estado local (SQLite + reportes); se versiona con git add -f
 └── docs/                   # arquitectura y decisiones
 ```
 
@@ -156,6 +214,9 @@ python -m backtests.compare_features --source live --days 1500 --feature-sets v0
 - **Backtest 2026-10-22 (1.000 días, BTC/ETH): sin ventaja demostrada.** Log loss 0,6978 vs 0,6931 del baseline. Ver `docs/BACKTEST-RESULTS.md`.
 - **Barrido de horizontes 1–7 días: también sin ventaja.** El deterioro es monótono; no era un problema de horizonte.
 - **A/B de features de régimen (v0.2): peor que v0.1** en log loss, calibración y retorno. Ver `docs/BACKTEST-RESULTS.md`.
+- **GitHub Pages es público y sin login.** Cualquiera con la URL puede leer el panel.
+- **El cron de GitHub Actions puede demorarse.** El sitio muestra la antigüedad del dato y avisa si supera 36 h.
+- **La PWA no es una app nativa:** es un sitio instalable; necesita internet para actualizarse.
 
 ## Próximos pasos
 
@@ -163,3 +224,4 @@ python -m backtests.compare_features --source live --days 1500 --feature-sets v0
 2. Si se sigue investigando, cambiar de **datos** (funding, open interest, on-chain), no de features de OHLCV.
 3. Revisar el historial de **explicaciones y su costo**; ajustar el prompt no puede cambiar el cálculo.
 4. Operación 24/7 (fase 7) solo con el historial y los límites revisados.
+5. Revisar que el workflow diario siga verde y que el sitio muestre datos frescos.
