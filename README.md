@@ -14,7 +14,7 @@ Plataforma personal de **apoyo a decisiones** para cripto. No adivina el precio:
 | 2. Ingesta y calidad de datos | ✅ Binance (OHLCV real) + CoinGecko opcional + validación + SQLite |
 | 3. Motor cuantitativo mínimo | ✅ features + señal determinista + circuit breakers |
 | 4. Backtesting | ✅ walk-forward real, calibración (ECE) y gate de robustez |
-| 5. Paper trading | 🟡 motor de simulación, falta el loop diario persistente |
+| 5. Paper trading | ✅ persistente en sombra: congela la entrada, resuelve al vencer y se ve en el panel |
 | 6. IA de explicación | 🟡 prompt + validación Pydantic, sin proveedor conectado |
 | 7. Operación 24/7 + agente | ⛔ no empezado (a propósito) |
 
@@ -70,7 +70,7 @@ trading-ai/
 │   ├── quant/              # features, señales, riesgo
 │   ├── models/             # baseline logístico (numpy)
 │   ├── reporting/          # reporte diario + prompt del LLM
-│   ├── paper_trading/      # simulación con costos
+│   ├── paper_trading/      # simulación persistente (modo sombra)
 │   └── schemas/            # contratos Pydantic
 ├── jobs/daily_run.py       # corrida diaria end-to-end
 ├── backtests/              # walk-forward, métricas y CLI de backtest
@@ -113,7 +113,7 @@ python -m backtests.compare_features --source live --days 1500 --feature-sets v0
 
 ## Próximos pasos
 
-1. Probar hipótesis de mejora **una a la vez** con el mismo protocolo de backtest.
-2. Repetir en otro periodo/activos antes de creer cualquier resultado positivo.
-3. Loop de paper trading diario que congele señales antes del resultado (**solo si** aparece edge).
-4. Solo después: capa de explicación con LLM y entrega por Telegram.
+1. Mantener el **paper trading en sombra** acumulando historial prospectivo; no se promociona mientras no haya edge.
+2. Si se sigue investigando, cambiar de **datos** (funding, open interest, on-chain), no de features de OHLCV.
+3. Capa de explicación con LLM (fase 6) sobre señales ya congeladas; **explica, nunca decide**.
+4. Operación 24/7 (fase 7) solo con el historial y los límites revisados.

@@ -17,6 +17,7 @@ from backtests.metrics import calibration_table, equity_curve
 from backtests.walk_forward import Prediction, non_overlapping
 from src.config.settings import ROOT, Settings
 from src.data.store import Store
+from src.paper_trading.shadow import equity_points, paper_stats
 from src.quant.risk import RiskLimits
 
 st.set_page_config(page_title="Trading AI — apoyo a decisiones", page_icon="📊", layout="wide")
@@ -254,8 +255,8 @@ st.sidebar.caption(f"BD: `{settings.db_path}`")
 if settings.demo_mode:
     st.sidebar.info("Modo demo: los datos pueden ser sintéticos y no deben usarse para decidir.")
 
-tab_resumen, tab_senales, tab_riesgo, tab_backtests, tab_auditoria = st.tabs(
-    ["Resumen", "Señales", "Riesgo", "Backtests", "Auditoría"]
+tab_resumen, tab_senales, tab_riesgo, tab_paper, tab_backtests, tab_auditoria = st.tabs(
+    ["Resumen", "Señales", "Riesgo", "Paper", "Backtests", "Auditoría"]
 )
 
 signals = []
@@ -373,6 +374,78 @@ with tab_riesgo:
     st.warning(
         "El kill switch debe poder activarse manualmente y no depende del LLM ni del agente. "
         "Ver RISK_LIMITS.md."
+    )
+
+with tab_paper:
+    st.subheader("Paper trading — modo sombra")
+    st.caption(
+        "Posiciones simuladas con datos reales: sin capital, sin claves y sin órdenes. "
+        "Cada señal se congela antes de conocer el resultado y se liquida al vencer el horizonte."
+    )
+
+    stats = paper_stats(store)
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    c1.metric("Capital (base 1,0)", f"{stats.equity:.4f}")
+    c2.metric("Retorno acumulado", f"{stats.total_return_pct:+.2f}%")
+    c3.metric("Operaciones cerradas", stats.trades)
+    c4.metric("Posiciones abiertas", stats.open_trades)
+    c5.metric("Acierto", f"{stats.win_rate * 100:.1f}%")
+    c6.metric("Max drawdown", f"{stats.max_drawdown_pct:.2f}%")
+
+    if stats.trades == 0 and stats.open_trades == 0:
+        st.info(
+            "Todavía no hay operaciones. Es el resultado esperado si ninguna señal supera "
+            "el umbral: NO_TRADE también es una decisión válida."
+        )
+        st.code("python -m jobs.daily_run --live", language="bash")
+
+    points = equity_points(store)
+    if len(points) >= 2:
+        st.markdown("**Curva de capital simulada** (solo operaciones cerradas)")
+        curve = pd.DataFrame(points).rename(columns={"at": "fecha", "equity": "capital"})
+        st.line_chart(curve.set_index("fecha")[["capital"]], height=300)
+
+    open_rows = store.open_paper_trades()
+    if open_rows:
+        st.markdown("**Posiciones abiertas**")
+        st.dataframe(
+            [
+                {
+                    "Activo": row["asset"],
+                    "Entrada": row["opened_at"][:16].replace("T", " "),
+                    "Precio entrada": f"{row['entry_price']:.2f}",
+                    "Tamaño": f"{row['size_pct']:.2f}%",
+                    "Vence": (row["due_at"] or "")[:16].replace("T", " "),
+                    "Modelo": row["model_version"],
+                }
+                for row in open_rows
+            ],
+            hide_index=True,
+            width="stretch",
+        )
+
+    closed_rows = store.paper_trades(status="closed", limit=200)
+    if closed_rows:
+        st.markdown("**Operaciones cerradas**")
+        st.dataframe(
+            [
+                {
+                    "Activo": row["asset"],
+                    "Cerrada": (row["closed_at"] or "")[:16].replace("T", " "),
+                    "Entrada": f"{row['entry_price']:.2f}",
+                    "Salida": f"{row['exit_price']:.2f}",
+                    "Bruto": f"{(row['gross_return'] or 0) * 100:+.2f}%",
+                    "Neto": f"{(row['net_return'] or 0) * 100:+.2f}%",
+                    "PnL capital": f"{(row['net_return'] or 0) * row['size_pct']:+.3f}%",
+                }
+                for row in closed_rows
+            ],
+            hide_index=True,
+            width="stretch",
+        )
+    st.caption(
+        "El costo (comisión + slippage) se congela al abrir la operación y se descuenta "
+        "del retorno neto. El PnL de capital aplica el tamaño sugerido por riesgo."
     )
 
 with tab_backtests:

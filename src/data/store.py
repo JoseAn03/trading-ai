@@ -84,8 +84,19 @@ CREATE TABLE IF NOT EXISTS paper_trades (
     gross_return  REAL,
     net_return    REAL,
     fees          REAL,
-    status        TEXT NOT NULL DEFAULT 'open'
+    status        TEXT NOT NULL DEFAULT 'open',
+    horizon_days  INTEGER NOT NULL DEFAULT 1,
+    due_at        TEXT,
+    cost_rate     REAL NOT NULL DEFAULT 0.002,
+    model_version TEXT NOT NULL DEFAULT 'unknown'
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_paper_signal
+    ON paper_trades(signal_id) WHERE signal_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_paper_open_asset
+    ON paper_trades(asset) WHERE status = 'open';
+CREATE UNIQUE INDEX IF NOT EXISTS ux_paper_asset_entry
+    ON paper_trades(asset, opened_at);
 
 CREATE TABLE IF NOT EXISTS performance_snapshots (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -125,6 +136,17 @@ class Store:
     def init_schema(self) -> None:
         with self.connect() as conn:
             conn.executescript(SCHEMA)
+            # Migracion de bases creadas antes de la fase 5 (paper trading persistente).
+            columns = {row["name"] for row in conn.execute("PRAGMA table_info(paper_trades)")}
+            additions = {
+                "horizon_days": "INTEGER NOT NULL DEFAULT 1",
+                "due_at": "TEXT",
+                "cost_rate": "REAL NOT NULL DEFAULT 0.002",
+                "model_version": "TEXT NOT NULL DEFAULT 'unknown'",
+            }
+            for name, ddl in additions.items():
+                if name not in columns:
+                    conn.execute(f"ALTER TABLE paper_trades ADD COLUMN {name} {ddl}")
 
     # ----------------------------- escritura -----------------------------
     def save_candles(self, candles: list[Candle], source: str) -> int:
@@ -179,7 +201,110 @@ class Store:
                     signal.model_dump_json(),
                 ),
             )
-            return int(cur.lastrowid or 0)
+            if cur.lastrowid:
+                return int(cur.lastrowid)
+            # INSERT OR IGNORE: la señal ya existía; devolver su id para no duplicar paper trades.
+            row = conn.execute(
+                """SELECT id FROM signals
+                   WHERE asset = ? AND horizon = ? AND timestamp = ? AND model_version = ?""",
+                (
+                    signal.asset,
+                    signal.horizon,
+                    signal.timestamp.isoformat(),
+                    signal.model_version,
+                ),
+            ).fetchone()
+            return int(row["id"]) if row else 0
+
+    def save_paper_trade(
+        self,
+        *,
+        asset: str,
+        signal_id: int,
+        opened_at: datetime,
+        entry_price: float,
+        size_pct: float,
+        horizon_days: int,
+        due_at: datetime,
+        cost_rate: float,
+        model_version: str,
+    ) -> int | None:
+        """Abre una posición simulada. Devuelve None si ya existía (idempotente)."""
+        try:
+            with self.connect() as conn:
+                cur = conn.execute(
+                    """INSERT INTO paper_trades
+                       (asset, signal_id, opened_at, entry_price, size_pct, status,
+                        horizon_days, due_at, cost_rate, model_version)
+                       VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?, ?)""",
+                    (
+                        asset,
+                        signal_id,
+                        opened_at.isoformat(),
+                        entry_price,
+                        size_pct,
+                        horizon_days,
+                        due_at.isoformat(),
+                        cost_rate,
+                        model_version,
+                    ),
+                )
+                return int(cur.lastrowid or 0) or None
+        except sqlite3.IntegrityError:
+            return None
+
+    def open_paper_trades(self) -> list[dict]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM paper_trades WHERE status = 'open' ORDER BY opened_at"
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def close_paper_trade(
+        self,
+        trade_id: int,
+        *,
+        exit_price: float,
+        closed_at: datetime,
+        gross_return: float,
+        net_return: float,
+        fees: float,
+    ) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                """UPDATE paper_trades
+                   SET status = 'closed', exit_price = ?, closed_at = ?,
+                       gross_return = ?, net_return = ?, fees = ?
+                   WHERE id = ? AND status = 'open'""",
+                (exit_price, closed_at.isoformat(), gross_return, net_return, fees, trade_id),
+            )
+
+    def paper_trades(self, status: str | None = None, limit: int = 500) -> list[dict]:
+        query = "SELECT * FROM paper_trades"
+        params: list[object] = []
+        if status:
+            query += " WHERE status = ?"
+            params.append(status)
+        query += " ORDER BY COALESCE(closed_at, opened_at) DESC LIMIT ?"
+        params.append(limit)
+        with self.connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+        return [dict(row) for row in rows]
+
+    def save_performance_snapshot(self, *, equity: float, drawdown: float, trades: int) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                """INSERT INTO performance_snapshots (taken_at, equity, drawdown, trades)
+                   VALUES (?, ?, ?, ?)""",
+                (datetime.now(UTC).isoformat(), equity, drawdown, trades),
+            )
+
+    def latest_performance_snapshot(self) -> dict | None:
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM performance_snapshots ORDER BY taken_at DESC LIMIT 1"
+            ).fetchone()
+        return dict(row) if row else None
 
     def audit(self, actor: str, action: str, detail: str) -> None:
         with self.connect() as conn:
