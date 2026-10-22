@@ -36,6 +36,7 @@ from src.config.settings import ROOT, Settings
 from src.data.adapters.base import DataProviderError, StaticAdapter
 from src.data.adapters.binance import BinanceAdapter
 from src.data.store import Store
+from src.quant.features import FEATURE_SETS, REQUIRED_HISTORY
 from src.schemas.market import Candle
 
 
@@ -236,7 +237,8 @@ def build_report(
         f"# Backtest walk-forward — {generated_at:%Y-%m-%d}",
         "",
         f"**Fuente:** `{args.source}` · **Periodo:** {args.days} días solicitados · "
-        f"**Horizonte:** {args.horizon} día(s) · **Umbral:** {args.threshold:.2f} · "
+        f"**Features:** `{args.features}` · **Horizonte:** {args.horizon} día(s) · "
+        f"**Umbral:** {args.threshold:.2f} · "
         f"**Costo ida y vuelta:** {cost_rate * 100:.2f}% · "
         f"**Ventanas:** train {args.train} / test {args.test} / step {args.step}",
         "",
@@ -312,7 +314,8 @@ def build_report(
         "## Reproducibilidad",
         "",
         f"```bash\npython -m backtests.run_backtest --source {args.source} --days {args.days} "
-        f"--assets {','.join(r.asset for r in results)} --horizon {args.horizon} "
+        f"--assets {','.join(r.asset for r in results)} --features {args.features} "
+        f"--horizon {args.horizon} "
         f"--threshold {args.threshold} "
         f"--train {args.train} --test {args.test} --step {args.step}\n```",
         "",
@@ -326,6 +329,7 @@ def build_report(
         "days": args.days,
         "threshold": args.threshold,
         "horizon": args.horizon,
+        "features": args.features,
         "cost_rate": cost_rate,
         "windows": {"train": args.train, "test": args.test, "step": args.step},
         "assets": {
@@ -352,9 +356,10 @@ def build_report(
 
 def _write_predictions_csv(path: Path, predictions: list[Prediction]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    rows = ["asset,window,horizon,timestamp,probability,label,next_return"]
+    rows = ["asset,window,horizon,features,timestamp,probability,label,next_return"]
     rows += [
-        f"{p.asset},{p.window},{p.horizon},{p.ts.isoformat()},{p.prob:.6f},{p.label},{p.next_return:.8f}"
+        f"{p.asset},{p.window},{p.horizon},{p.feature_set},{p.ts.isoformat()},"
+        f"{p.prob:.6f},{p.label},{p.next_return:.8f}"
         for p in predictions
     ]
     path.write_text("\n".join(rows) + "\n", encoding="utf-8")
@@ -365,6 +370,9 @@ def main() -> None:
     parser.add_argument("--source", choices=["demo", "live", "cache"], default="demo")
     parser.add_argument("--days", type=int, default=1000)
     parser.add_argument("--assets", default="BTC,ETH")
+    parser.add_argument(
+        "--features", default="v0.1", choices=sorted(FEATURE_SETS), help="set de features"
+    )
     parser.add_argument("--horizon", type=int, default=1, help="días hasta el resultado evaluado")
     parser.add_argument("--threshold", type=float, default=0.55)
     parser.add_argument("--train", type=int, default=365)
@@ -388,12 +396,17 @@ def main() -> None:
         candles, effective_source = load_series(
             asset, source=args.source, days=args.days, store=store
         )
-        if len(candles) < args.train + args.test + 40:
+        if len(candles) < args.train + args.test + REQUIRED_HISTORY[args.features] + 1:
             print(f"[aviso] {asset}: pocas velas ({len(candles)}); se omite.")
             continue
         try:
             predictions = walk_forward_predictions(
-                candles, train=args.train, test=args.test, step=args.step, horizon=args.horizon
+                candles,
+                train=args.train,
+                test=args.test,
+                step=args.step,
+                horizon=args.horizon,
+                feature_set=args.features,
             )
         except ValueError as exc:
             print(f"[aviso] {asset}: {exc}")

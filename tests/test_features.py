@@ -60,3 +60,22 @@ def test_mixed_assets_rejected() -> None:
     candles = make_candles(60) + make_candles(5, asset="ETH")
     with pytest.raises(ValueError):
         compute_features(sorted(candles, key=lambda c: c.ts), now=NOW)
+
+
+def test_long_regime_features_are_coherent() -> None:
+    candles = make_candles(260, daily_return=0.005, volatility=0.01)
+    f = compute_features(candles, now=candles[-1].ts)
+    assert f.sma_long > 0
+    assert f.trend_long > 0
+    assert f.distance_to_sma200 > 0
+    assert f.drawdown_60d <= 0
+    assert f.vol_60d > 0
+    assert f.vol_ratio > 0
+
+
+def test_long_features_use_only_available_history() -> None:
+    candles = make_candles(60, daily_return=0.002, volatility=0.01)
+    f = compute_features(candles, now=candles[-1].ts)
+    # Con menos de 200 velas se usa toda la historia disponible, sin romper.
+    assert f.sma_long == pytest.approx(sum(c.close for c in candles) / len(candles))
+    assert f.observations == 60

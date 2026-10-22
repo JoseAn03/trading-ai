@@ -98,6 +98,7 @@ ruff check .                    # lint
 ruff format .                   # formato
 python -m backtests.walk_forward    # humo con datos sintéticos
 python -m backtests.run_backtest --source live --days 1000 --assets BTC,ETH
+python -m backtests.compare_features --source live --days 1500 --feature-sets v0.1,v0.2
 ```
 
 ## Riesgos conocidos de esta versión
@@ -108,6 +109,7 @@ python -m backtests.run_backtest --source live --days 1000 --assets BTC,ETH
 - CoinGecko ahora exige API key (`COINGECKO_API_KEY`); Binance es la fuente principal.
 - **Backtest 2026-10-22 (1.000 días, BTC/ETH): sin ventaja demostrada.** Log loss 0,6978 vs 0,6931 del baseline. Ver `docs/BACKTEST-RESULTS.md`.
 - **Barrido de horizontes 1–7 días: también sin ventaja.** El deterioro es monótono; no era un problema de horizonte.
+- **A/B de features de régimen (v0.2): peor que v0.1** en log loss, calibración y retorno. Ver `docs/BACKTEST-RESULTS.md`.
 
 ## Próximos pasos
 

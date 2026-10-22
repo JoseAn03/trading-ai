@@ -48,8 +48,8 @@ paso del plan es probar hipótesis con evidencia, no añadir complejidad a ciega
 **Hipótesis a probar (una a la vez, mismo protocolo)**
 
 1. ❌ **Horizonte distinto (3–7 días)** — probada el 2026-10-22: empeora (ver abajo).
-2. Filtro de régimen (tendencia vs rango) para separar periodos.
-3. Features de volatilidad realizada y volumen relativo con ventanas más largas.
+2. ❌ **Filtro de régimen (tendencia vs rango)** — probada el 2026-10-22 junto con la 3: empeora.
+3. ❌ **Features de volatilidad realizada y volumen relativo con ventanas más largas** — probada: empeora.
 4. Incluir costos variables por volatilidad (slippage proporcional).
 
 **Cómo reproducir**
@@ -98,3 +98,54 @@ adelante. Si eso también falla, el resultado honesto es mantener el sistema en
 `NO_TRADE` por defecto y no pasar a paper trading.
 
 **Reporte completo:** `var/reports/barrido-horizontes-2026-10-22.md`
+
+---
+
+## 2026-10-22 — Features de régimen y ventanas largas (hipótesis 2 y 3: rechazadas)
+
+**Pregunta:** ¿añadir información de régimen de largo plazo (tendencia 50/200,
+distancia a SMA200, ratio de volatilidad 20/60 y drawdown desde el máximo de 60
+días) mejora la predicción frente a las 5 features de corto plazo?
+
+**Método:** 1.500 días de Binance, BTC y ETH. Ambos sets usan **las mismas
+muestras, ventanas, umbral, costos y modelo** (logística, 500 épocas, l2 0.01);
+solo cambia qué columnas ve el modelo. Historia mínima forzada a 201 velas para
+igualar el periodo evaluado.
+
+- `v0.1` (base): trend, momentum_10d, distance_to_sma, volume_relative, vol_20d.
+- `v0.2` (régimen): las 5 anteriores + trend_long, distance_to_sma200,
+  vol_ratio, drawdown_60d.
+
+**Resultado (1.800 muestras fuera de muestra por set)**
+
+| Set | Log loss | ECE | Trades | Retorno neto | Max DD | Ventanas + | Activos + |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| v0.1 (5 features) | 0.6995 | 0.0312 | 226 | +6.04 % | 22.4 % | 53 % | 2/2 |
+| v0.2 (9 features) | 0.7061 | 0.0511 | 483 | −65.69 % | 80.5 % | 37 % | 0/2 |
+
+Delta v0.2 vs v0.1: **log loss +0.0065**, **retorno −71.73 %**, **ECE +0.0199**.
+
+**Lectura**
+
+- El set de régimen **empeora el log loss** y duplica los trades: el modelo
+  encuentra "señales" en más sitios, pero son ruido.
+- La calibración se degrada (ECE 0.031 → 0.051) y el drawdown sube a 80 %:
+  más operaciones y más confianza sin más información.
+- v0.1 con 1.500 días deja 2/2 activos positivos y +6 %, pero su log loss sigue
+  siendo peor que el baseline 50/50 y solo el 53 % de las ventanas son positivas.
+  El gate lo rechaza correctamente: **ganancia sin capacidad predictiva es suerte**.
+
+**Conclusión:** hipótesis rechazada. Con OHLCV diario, ni las features de corto
+plazo ni las de régimen contienen señal direccional aprovechable después de
+costos. Añadir más features a este mismo dataset solo aumenta el sobreajuste.
+
+**Implicación:** dejar de iterar sobre features de OHLCV diario. Alternativas
+honestas, en orden de esfuerzo:
+
+1. **No operar** y usar el sistema como auditor/registro (`NO_TRADE` por defecto).
+2. **Datos distintos**: funding rates, open interest, on-chain u order book;
+   exige ingesta nueva y su propio backtest.
+3. **Paper trading en sombra** para recolectar evidencia prospectiva, sin capital
+   y sin promover el modelo actual.
+
+**Reporte completo:** `var/reports/comparacion-features-2026-10-22.md`

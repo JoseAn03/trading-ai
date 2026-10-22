@@ -19,15 +19,17 @@ class LogisticBaseline:
     learning_rate: float = 0.1
     epochs: int = 300
     l2: float = 0.01
+    feature_order: tuple[str, ...] = FEATURE_ORDER
     weights: np.ndarray | None = None
     bias: float = 0.0
     mu: np.ndarray | None = None
     sigma: np.ndarray | None = None
     history: list[float] = field(default_factory=list)
 
-    @staticmethod
-    def _matrix(rows: list[dict[str, float]]) -> np.ndarray:
-        return np.array([[float(r[k]) for k in FEATURE_ORDER] for r in rows], dtype=float)
+    def _matrix(self, rows: list[dict[str, float]]) -> np.ndarray:
+        return np.array(
+            [[float(r[k]) for k in self.feature_order] for r in rows], dtype=float
+        )
 
     def fit(self, rows: list[dict[str, float]], labels: list[int]) -> LogisticBaseline:
         if len(rows) != len(labels):
@@ -73,4 +75,7 @@ class LogisticBaseline:
     def describe(self) -> dict[str, float]:
         if self.weights is None:
             return {}
-        return {name: float(w) for name, w in zip(FEATURE_ORDER, self.weights, strict=True)}
+        return {
+            name: float(w)
+            for name, w in zip(self.feature_order, self.weights, strict=True)
+        }

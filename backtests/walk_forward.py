@@ -15,7 +15,7 @@ from datetime import datetime
 
 from backtests.metrics import brier_score, log_loss
 from src.models.baseline import LogisticBaseline
-from src.quant.features import compute_features
+from src.quant.features import FEATURE_SETS, REQUIRED_HISTORY, compute_features
 from src.schemas.market import Candle
 
 
@@ -36,6 +36,7 @@ class Prediction:
     label: int
     next_return: float
     horizon: int
+    feature_set: str = "v0.1"
 
 
 @dataclass
@@ -87,11 +88,19 @@ class WalkForwardResult:
 
 
 def build_samples(
-    candles: list[Candle], *, min_history: int = 31, horizon: int = 1
+    candles: list[Candle],
+    *,
+    min_history: int = 31,
+    horizon: int = 1,
+    feature_set: str = "v0.1",
 ) -> list[Sample]:
     """Features en t, etiqueta y retorno de t a t+horizon (nunca usa el futuro)."""
     if horizon < 1:
         raise ValueError("horizon debe ser >= 1")
+    if feature_set not in FEATURE_SETS:
+        raise ValueError(f"feature_set desconocido: {feature_set}")
+
+    min_history = max(min_history, REQUIRED_HISTORY[feature_set])
     ordered = sorted(candles, key=lambda c: c.ts)
     samples: list[Sample] = []
 
@@ -105,13 +114,7 @@ def build_samples(
         current, nxt = ordered[i].close, ordered[i + horizon].close
         samples.append(
             Sample(
-                features={
-                    "trend": f.trend,
-                    "momentum_10d": f.momentum_10d,
-                    "distance_to_sma": f.distance_to_sma,
-                    "volume_relative": f.volume_relative,
-                    "vol_20d": f.vol_20d,
-                },
+                features={name: float(getattr(f, name)) for name in FEATURE_SETS[feature_set]},
                 label=1 if nxt > current else 0,
                 next_return=nxt / current - 1 if current else 0.0,
                 ts=ordered[i].ts,
@@ -127,9 +130,13 @@ def walk_forward_predictions(
     test: int = 60,
     step: int = 60,
     horizon: int = 1,
+    feature_set: str = "v0.1",
+    min_history: int = 31,
 ) -> list[Prediction]:
     """Predicciones fuera de muestra. Cada una se generó antes de conocer su resultado."""
-    samples = build_samples(candles, horizon=horizon)
+    samples = build_samples(
+        candles, horizon=horizon, feature_set=feature_set, min_history=min_history
+    )
     if len(samples) < train + test:
         raise ValueError(
             f"muestras insuficientes: {len(samples)} (se requieren {train + test}). "
@@ -145,7 +152,11 @@ def walk_forward_predictions(
         train_slice = samples[start : start + train]
         test_slice = samples[start + train : start + train + test]
 
-        model = LogisticBaseline(epochs=500, learning_rate=0.15).fit(
+        model = LogisticBaseline(
+            epochs=500,
+            learning_rate=0.15,
+            feature_order=FEATURE_SETS[feature_set],
+        ).fit(
             [s.features for s in train_slice], [s.label for s in train_slice]
         )
         probs = model.predict_proba([s.features for s in test_slice])
@@ -160,6 +171,7 @@ def walk_forward_predictions(
                     label=s.label,
                     next_return=s.next_return,
                     horizon=horizon,
+                    feature_set=feature_set,
                 )
             )
 
@@ -176,9 +188,17 @@ def walk_forward(
     test: int = 20,
     step: int = 20,
     horizon: int = 1,
+    feature_set: str = "v0.1",
+    min_history: int = 31,
 ) -> WalkForwardResult:
     predictions = walk_forward_predictions(
-        candles, train=train, test=test, step=step, horizon=horizon
+        candles,
+        train=train,
+        test=test,
+        step=step,
+        horizon=horizon,
+        feature_set=feature_set,
+        min_history=min_history,
     )
 
     result = WalkForwardResult()

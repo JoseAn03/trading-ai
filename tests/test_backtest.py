@@ -98,6 +98,29 @@ def test_horizon_rejects_zero() -> None:
         build_samples(make_candles(60), horizon=0)
 
 
+def test_feature_set_v02_uses_long_history_and_columns() -> None:
+    assert build_samples(make_candles(150), feature_set="v0.2") == []
+    samples = build_samples(make_candles(260, daily_return=0.002, volatility=0.01), feature_set="v0.2")
+    assert samples
+    assert len(samples[0].features) == 9
+    assert set(samples[0].features) == {
+        "trend",
+        "momentum_10d",
+        "distance_to_sma",
+        "volume_relative",
+        "vol_20d",
+        "trend_long",
+        "distance_to_sma200",
+        "vol_ratio",
+        "drawdown_60d",
+    }
+
+
+def test_unknown_feature_set_rejected() -> None:
+    with pytest.raises(ValueError):
+        build_samples(make_candles(260), feature_set="v9.9")
+
+
 def test_evaluate_avoids_overlapping_bets() -> None:
     base = datetime(2026, 1, 1, tzinfo=UTC)
     preds = [
