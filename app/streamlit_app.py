@@ -252,11 +252,15 @@ st.sidebar.metric("Modo", mode)
 st.sidebar.metric("Activos", ", ".join(settings.assets))
 st.sidebar.metric("Horizonte", settings.horizon)
 st.sidebar.caption(f"BD: `{settings.db_path}`")
+st.sidebar.caption(
+    f"LLM: {'on' if settings.llm_enabled else 'off'} · "
+    f"Telegram: {'on' if settings.telegram_enabled else 'off'}"
+)
 if settings.demo_mode:
     st.sidebar.info("Modo demo: los datos pueden ser sintéticos y no deben usarse para decidir.")
 
-tab_resumen, tab_senales, tab_riesgo, tab_paper, tab_backtests, tab_auditoria = st.tabs(
-    ["Resumen", "Señales", "Riesgo", "Paper", "Backtests", "Auditoría"]
+tab_resumen, tab_explicacion, tab_senales, tab_riesgo, tab_paper, tab_backtests, tab_auditoria = st.tabs(
+    ["Resumen", "Explicación", "Señales", "Riesgo", "Paper", "Backtests", "Auditoría"]
 )
 
 signals = []
@@ -317,6 +321,95 @@ with tab_resumen:
                     st.warning(
                         "El dato tiene más de 36 h: revisar la ingesta antes de leer cualquier señal."
                     )
+
+with tab_explicacion:
+    st.subheader("Explicación del día")
+    st.caption(
+        "La escribe el motor en lenguaje natural; si el LLM está activo, solo reescribe "
+        "un JSON ya calculado. Ninguna cifra de esta pestaña se usa para decidir."
+    )
+
+    latest = None
+    try:
+        latest = store.latest_explanation()
+    except Exception:  # noqa: BLE001 - BD sin esquema nuevo
+        latest = None
+
+    if latest is None:
+        st.info(
+            "Todavía no hay explicaciones guardadas. Se generan al final de cada corrida diaria, "
+            "incluso con el LLM desactivado."
+        )
+        st.code("python -m jobs.daily_run --live", language="bash")
+    else:
+        try:
+            body = json.loads(latest["body"])
+        except (TypeError, json.JSONDecodeError):
+            body = {}
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Tipo", "LLM" if latest["kind"] == "llm" else "Determinista")
+        c2.metric("Modelo", latest["model"])
+        c3.metric("Tokens", f"{latest['input_tokens'] + latest['output_tokens']:,}")
+        c4.metric("Costo estimado", f"${latest['cost_usd']:.6f}")
+
+        if latest["kind"] == "llm":
+            st.success(
+                f"Redactada por el LLM y validada: prompt `{latest['prompt_version']}`."
+            )
+        elif latest["fallback_reason"] == "llm_disabled":
+            st.info("LLM desactivado: se muestra la explicación determinista.")
+        elif latest["fallback_reason"] == "llm_not_configured":
+            st.info("LLM activado pero sin API key: se muestra la explicación determinista.")
+        elif latest["fallback_reason"]:
+            st.warning(
+                "El LLM no pasó la validación y se descartó su texto. "
+                f"Motivo: `{latest['fallback_reason']}`."
+            )
+
+        st.markdown(f"### {latest['subject']}")
+        st.write(body.get("executive_summary", ""))
+
+        opportunities = body.get("top_opportunities") or []
+        if opportunities:
+            st.markdown("**Oportunidades descritas**")
+            for item in opportunities:
+                st.markdown(
+                    f"- **{item.get('asset', '?')}** ({item.get('signal', '?')}): "
+                    f"{item.get('why', '')}"
+                )
+
+        notes = body.get("no_trade_notes") or []
+        if notes:
+            st.markdown("**Por qué no se opera**")
+            for note in notes:
+                st.markdown(f"- {note}")
+
+        health = body.get("data_health_note")
+        if health:
+            st.markdown("**Salud de los datos**")
+            st.write(health)
+
+        st.caption(body.get("disclaimer", "No es asesoría financiera."))
+        st.caption(f"Generada: {latest['generated_at'][:16].replace('T', ' ')} UTC")
+
+        with st.expander("Historial de explicaciones"):
+            history = store.explanations(10)
+            st.dataframe(
+                [
+                    {
+                        "Fecha": row["generated_at"][:16].replace("T", " "),
+                        "Tipo": "LLM" if row["kind"] == "llm" else "determinista",
+                        "Modelo": row["model"],
+                        "Asunto": row["subject"],
+                        "Motivo fallback": row["fallback_reason"] or "—",
+                        "Costo USD": f"{row['cost_usd']:.6f}",
+                    }
+                    for row in history
+                ],
+                hide_index=True,
+                width="stretch",
+            )
 
 with tab_senales:
     if signals:

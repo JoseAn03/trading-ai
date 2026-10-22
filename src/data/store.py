@@ -6,6 +6,7 @@ versión de modelo y versión de código, para poder auditar después.
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -104,6 +105,23 @@ CREATE TABLE IF NOT EXISTS performance_snapshots (
     equity     REAL NOT NULL,
     drawdown   REAL NOT NULL,
     trades     INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS explanations (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    generated_at    TEXT NOT NULL,
+    kind            TEXT NOT NULL,
+    provider        TEXT NOT NULL,
+    model           TEXT NOT NULL,
+    prompt_version  TEXT NOT NULL,
+    subject         TEXT NOT NULL,
+    body            TEXT NOT NULL,
+    raw_response    TEXT,
+    valid           INTEGER NOT NULL DEFAULT 1,
+    fallback_reason TEXT,
+    input_tokens    INTEGER NOT NULL DEFAULT 0,
+    output_tokens   INTEGER NOT NULL DEFAULT 0,
+    cost_usd        REAL NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS audit_events (
@@ -305,6 +323,73 @@ class Store:
                 "SELECT * FROM performance_snapshots ORDER BY taken_at DESC LIMIT 1"
             ).fetchone()
         return dict(row) if row else None
+
+    def save_explanation(
+        self,
+        *,
+        generated_at: datetime,
+        kind: str,
+        provider: str,
+        model: str,
+        prompt_version: str,
+        subject: str,
+        body: dict,
+        raw_response: str | None,
+        valid: bool,
+        fallback_reason: str | None,
+        input_tokens: int = 0,
+        output_tokens: int = 0,
+        cost_usd: float = 0.0,
+    ) -> int:
+        with self.connect() as conn:
+            cur = conn.execute(
+                """INSERT INTO explanations
+                   (generated_at, kind, provider, model, prompt_version, subject, body,
+                    raw_response, valid, fallback_reason, input_tokens, output_tokens, cost_usd)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    generated_at.isoformat(),
+                    kind,
+                    provider,
+                    model,
+                    prompt_version,
+                    subject,
+                    json.dumps(body, ensure_ascii=False),
+                    raw_response,
+                    1 if valid else 0,
+                    fallback_reason,
+                    input_tokens,
+                    output_tokens,
+                    cost_usd,
+                ),
+            )
+            return int(cur.lastrowid or 0)
+
+    def latest_explanation(self) -> dict | None:
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM explanations ORDER BY generated_at DESC, id DESC LIMIT 1"
+            ).fetchone()
+        return dict(row) if row else None
+
+    def explanations(self, limit: int = 20) -> list[dict]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM explanations ORDER BY generated_at DESC, id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def llm_spend_since(self, since: datetime) -> float:
+        """Gasto registrado en llamadas al LLM desde `since` (USD estimado)."""
+        with self.connect() as conn:
+            row = conn.execute(
+                """SELECT COALESCE(SUM(cost_usd), 0) AS total
+                   FROM explanations
+                   WHERE generated_at >= ?""",
+                (since.isoformat(),),
+            ).fetchone()
+        return float(row["total"]) if row else 0.0
 
     def audit(self, actor: str, action: str, detail: str) -> None:
         with self.connect() as conn:

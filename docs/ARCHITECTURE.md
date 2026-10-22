@@ -21,9 +21,11 @@ Ranking + contrato de señal  ──► signals (payload JSON completo)
         ↓
 Reporte diario determinista (src/reporting/daily_report.py)  ──► var/reports/*.md|json
         ↓
-[Opcional] LLM redacta explicación → se valida con Pydantic → si falla, se descarta
+Explicación determinista (siempre)  ──► explanations
         ↓
-Panel Streamlit / Telegram (futuro)
+[Opcional] LLM redacta el mismo JSON → Pydantic + guardia de cifras → si falla, se descarta
+        ↓
+Panel Streamlit / Telegram (opcional)
 ```
 
 ## Módulos y responsabilidad única
@@ -36,6 +38,8 @@ Panel Streamlit / Telegram (futuro)
 | `src/quant/signals` | Convierte features en señal | No dimensiona riesgo final |
 | `src/quant/risk` | Bloquea y dimensiona | No explica |
 | `src/reporting` | Redacta y estructura | No calcula |
+| `src/llm` | Llama al proveedor y valida la salida | No calcula ni decide |
+| `src/delivery` | Notifica por Telegram | No es fuente de verdad |
 | `src/paper_trading` | Simula, congela y resuelve en SQLite | No toca exchanges |
 | `backtests/metrics` | Calibración y retorno neto | No entrena modelos |
 | `backtests/run_backtest` | Orquesta backtest y reporte | No decide por ti |
@@ -49,6 +53,7 @@ Panel Streamlit / Telegram (futuro)
 4. Toda escritura en BD va con versión de modelo y código.
 5. El motor no usa `datetime.now()` internamente: el reloj se inyecta (`now`), lo que hace los tests reproducibles.
 6. Los proveedores pueden fallar: la ingesta degrada a caché y la calidad marca el dato como no fresco.
+7. La salida del LLM se valida contra el payload: toda cifra, activo y señal debe existir; si no, se descarta y se publica la explicación determinista.
 
 ## Decisiones de diseño
 

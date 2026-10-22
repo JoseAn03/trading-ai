@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -16,6 +17,7 @@ from src.config.settings import LOGS_DIR, ROOT, Settings
 from src.data.adapters.base import MarketDataAdapter, StaticAdapter
 from src.data.ingestion import ingest_asset
 from src.data.store import Store
+from src.delivery.telegram import deliver
 from src.paper_trading.engine import PaperTradingEngine
 from src.paper_trading.shadow import (
     SignalToOpen,
@@ -28,6 +30,7 @@ from src.quant.features import InsufficientData, compute_features
 from src.quant.risk import CircuitBreaker, RiskDecision
 from src.quant.signals import build_signal, rank_signals
 from src.reporting.daily_report import build_report
+from src.reporting.explain import explain_daily
 from src.schemas.enums import Signal
 from src.schemas.market import Candle
 from src.schemas.signal import SignalBatch, SignalContract
@@ -147,13 +150,31 @@ def run(*, live: bool = False, settings: Settings | None = None, out_dir: Path |
     )
 
     store.audit("daily_run", "report_generated", str(report_path))
+
+    explanation = explain_daily(
+        batch=batch,
+        decisions=decisions,
+        paper=stats,
+        store=store,
+        settings=settings,
+        generated_at=now,
+    )
+    if settings.telegram_enabled:
+        delivered = deliver(explanation.subject, explanation.body, settings)
+        store.audit(
+            "daily_run",
+            "telegram",
+            f"explanation={explanation.id} delivered={delivered}",
+        )
+
     log.info(
-        "reporte: %s | %s | paper abiertos=%s cerrados=%s equity=%.4f",
+        "reporte: %s | %s | paper abiertos=%s cerrados=%s equity=%.4f | explicacion=%s",
         report_path,
         batch.summarise(),
         stats.open_trades,
         stats.trades,
         stats.equity,
+        explanation.kind,
     )
 
     return {
@@ -166,16 +187,25 @@ def run(*, live: bool = False, settings: Settings | None = None, out_dir: Path |
             "resolved": resolved,
             "stats": stats,
         },
+        "explanation": explanation,
     }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Corrida diaria del sistema de señales")
-    parser.add_argument("--live", action="store_true", help="usar CoinGecko en lugar de datos sintéticos")
+    parser.add_argument("--live", action="store_true", help="usar Binance en lugar de datos sintéticos")
     parser.add_argument("--out", type=Path, default=None, help="carpeta de salida de reportes")
+    parser.add_argument(
+        "--llm",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="activar/desactivar la explicacion con LLM para esta corrida",
+    )
     args = parser.parse_args()
 
     settings = Settings.from_env()
+    if args.llm is not None:
+        settings = replace(settings, llm_enabled=args.llm)
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         level=getattr(logging, settings.log_level, logging.INFO),
@@ -193,6 +223,11 @@ def main() -> None:
     print(
         f"Paper: abiertos={paper.open_trades} cerrados={paper.trades} "
         f"equity={paper.equity:.4f} retorno={paper.total_return_pct:+.2f}%"
+    )
+    explanation = result["explanation"]
+    print(
+        f"Explicacion: {explanation.kind} "
+        f"(motivo={explanation.fallback_reason or 'ok'})"
     )
 
 

@@ -15,7 +15,7 @@ Plataforma personal de **apoyo a decisiones** para cripto. No adivina el precio:
 | 3. Motor cuantitativo mínimo | ✅ features + señal determinista + circuit breakers |
 | 4. Backtesting | ✅ walk-forward real, calibración (ECE) y gate de robustez |
 | 5. Paper trading | ✅ persistente en sombra: congela la entrada, resuelve al vencer y se ve en el panel |
-| 6. IA de explicación | 🟡 prompt + validación Pydantic, sin proveedor conectado |
+| 6. IA de explicación | ✅ determinista + LLM validado con guardia de cifras y fallback; entrega Telegram opcional |
 | 7. Operación 24/7 + agente | ⛔ no empezado (a propósito) |
 
 ## Arranque rápido (Windows)
@@ -42,6 +42,9 @@ python -m jobs.daily_run
 # 3) corrida real (Binance, sin API key)
 python -m jobs.daily_run --live
 
+# 3b) corrida real con explicación LLM (requiere TRADING_LLM_API_KEY)
+python -m jobs.daily_run --live --llm
+
 # 4) backtest con datos reales + calibración
 python -m backtests.run_backtest --source live --days 1000 --assets BTC,ETH
 
@@ -51,6 +54,22 @@ streamlit run app/streamlit_app.py
 
 Salidas en `var/reports/`: reporte diario (`.md`/`.json`), backtest (`.md`/`.json`)
 y predicciones auditables (`.csv`). Base en `var/trading.db`.
+
+## Explicación y entrega (fase 6)
+
+Cada corrida guarda una explicación en la tabla `explanations`, siempre en dos capas:
+
+1. **Determinista** (siempre): se arma con las cifras ya calculadas por el motor.
+2. **LLM** (opcional): reescribe ese JSON y se valida con Pydantic. Si inventa una cifra,
+   un activo o una señal, o usa lenguaje de garantía, se descarta y se publica la
+   determinista con el motivo en `fallback_reason`.
+
+El LLM no calcula, no decide y no cambia señales, tamaños ni riesgo. El costo estimado
+de cada llamada se registra y hay un techo mensual (`TRADING_LLM_MONTHLY_BUDGET_USD`).
+La explicación se ve en la pestaña **Explicación** del panel.
+
+Con `TRADING_TELEGRAM_ENABLED=true`, `TRADING_TELEGRAM_BOT_TOKEN` y
+`TRADING_TELEGRAM_CHAT_ID`, también se envía por Telegram. Sin credenciales no se envía nada.
 
 Docker:
 
@@ -69,7 +88,9 @@ trading-ai/
 │   ├── data/               # adaptadores, ingesta, calidad, SQLite
 │   ├── quant/              # features, señales, riesgo
 │   ├── models/             # baseline logístico (numpy)
-│   ├── reporting/          # reporte diario + prompt del LLM
+│   ├── reporting/          # reporte diario + explicación determinista/LLM
+│   ├── llm/                # cliente compatible OpenAI + guardias de salida
+│   ├── delivery/           # notificación opcional (Telegram)
 │   ├── paper_trading/      # simulación persistente (modo sombra)
 │   └── schemas/            # contratos Pydantic
 ├── jobs/daily_run.py       # corrida diaria end-to-end
@@ -115,5 +136,5 @@ python -m backtests.compare_features --source live --days 1500 --feature-sets v0
 
 1. Mantener el **paper trading en sombra** acumulando historial prospectivo; no se promociona mientras no haya edge.
 2. Si se sigue investigando, cambiar de **datos** (funding, open interest, on-chain), no de features de OHLCV.
-3. Capa de explicación con LLM (fase 6) sobre señales ya congeladas; **explica, nunca decide**.
+3. Revisar el historial de **explicaciones y su costo**; ajustar el prompt no puede cambiar el cálculo.
 4. Operación 24/7 (fase 7) solo con el historial y los límites revisados.

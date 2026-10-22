@@ -11,6 +11,8 @@ Versión: `explain-signal-v1` · Última revisión: 2026-10-22
 5. Si `data_quality != "valid"`, debe decirlo en la primera frase.
 6. Salida **solo JSON**, sin markdown ni texto adicional.
 7. Si no puede cumplir el esquema, debe devolver `{}` — el sistema publicará la versión determinista.
+8. Si no hay señales accionables, `top_opportunities` debe quedar vacío.
+9. Toda cifra, activo y señal citada debe existir en el payload. El sistema lo verifica antes de publicar.
 
 ## Entrada (resumen del contrato)
 
@@ -50,7 +52,8 @@ Versión: `explain-signal-v1` · Última revisión: 2026-10-22
 | Caso | Acción |
 | --- | --- |
 | JSON inválido | Descartar y publicar reporte determinista |
-| Cifra inventada | Descartar (revisión manual del prompt) |
+| Cifra, activo o señal inventada | Descartar y publicar determinista (`cifras_inventadas:...`) |
+| Frase de garantía o recomendación de compra | Descartar (`frase_prohibida`) |
 | Timeout del proveedor LLM | Publicar determinista, registrar en `audit_events` |
 | Costo del LLM por encima del techo mensual | Desactivar `TRADING_LLM_ENABLED` hasta el mes siguiente |
 

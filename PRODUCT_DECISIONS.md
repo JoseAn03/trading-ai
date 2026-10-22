@@ -42,7 +42,7 @@ Documento vivo. Cualquier cambio de alcance se anota aquí **antes** de tocar c�
 ## Preguntas abiertas
 
 - ¿Qué drawdown máximo es tolerable **psicológicamente**, no solo en el papel?
-- ¿El reporte diario debe llegar por email, Telegram o solo panel?
+- ¿Qué proveedor de LLM y qué techo de gasto mensual se mantiene? (por defecto: desactivado, techo 1 USD)
 - ¿Se acepta operar fines de semana cripto o se filtran por liquidez?
 - ¿Qué evidencia haría abandonar el proyecto? (definir antes de empezar)
 - ¿Se necesita revisión fiscal antes del paper trading? (recomendado: sí, antes de dinero real)
@@ -53,3 +53,5 @@ Documento vivo. Cualquier cambio de alcance se anota aquí **antes** de tocar c�
 | --- | --- | --- |
 | 2026-10-22 | Creación inicial a partir del plan v2.0 | Arranque del repositorio |
 | 2026-10-22 | Costos fijados en 6+4 bps ida y vuelta | Alinear con exchange minorista típico |
+| 2026-10-22 | Paper trading persistente en sombra, sin capital | Congelar la señal antes del resultado |
+| 2026-10-22 | Explicación determinista + LLM validado; entrega opcional | El LLM redacta, nunca decide |

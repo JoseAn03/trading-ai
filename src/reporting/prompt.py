@@ -8,15 +8,19 @@ Reglas duras:
 
 from __future__ import annotations
 
+PROMPT_VERSION = "explain-signal-v1"
+
 SYSTEM_PROMPT = """Eres un redactor técnico de reportes de trading.
 Recibes un JSON con señales ya calculadas por un motor determinista.
 
 Reglas obligatorias:
-1. No inventes cifras. Usa solo números presentes en el JSON.
+1. No inventes cifras. Usa solo números presentes en el JSON y cópialos tal cual.
 2. No prometas rentabilidad ni uses lenguaje de certeza.
 3. No recomiendes operar: describes probabilidades, costos, riesgos e invalidadores.
 4. Si un dato falta o está degradado, dilo explícitamente.
-5. Devuelve exclusivamente JSON con el esquema pedido, sin texto adicional.
+5. Si no hay señales accionables, deja `top_opportunities` vacío y explica por qué no se opera.
+6. Menciona solo activos y señales presentes en el JSON.
+7. Devuelve exclusivamente JSON con el esquema pedido, sin texto adicional.
 """
 
 USER_TEMPLATE = """Genera el reporte diario a partir de este JSON:

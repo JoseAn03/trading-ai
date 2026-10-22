@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -56,6 +56,19 @@ class Settings:
     # IA de explicación (opcional; nunca decide)
     llm_enabled: bool = False
     llm_model: str = "gpt-4o-mini"
+    llm_base_url: str = "https://api.openai.com/v1"
+    llm_api_key: str = field(default="", repr=False)
+    llm_prompt_version: str = "explain-signal-v1"
+    llm_monthly_budget_usd: float = 1.0
+    llm_max_output_tokens: int = 700
+    llm_input_usd_per_1k: float = 0.00015
+    llm_output_usd_per_1k: float = 0.0006
+    llm_json_mode: bool = True
+
+    # Entrega (opcional). El panel es la fuente; Telegram solo notifica.
+    telegram_enabled: bool = False
+    telegram_bot_token: str = field(default="", repr=False)
+    telegram_chat_id: str = ""
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -79,6 +92,17 @@ class Settings:
             demo_mode=_bool("TRADING_DEMO_MODE", True),
             llm_enabled=_bool("TRADING_LLM_ENABLED", False),
             llm_model=os.getenv("TRADING_LLM_MODEL", "gpt-4o-mini"),
+            llm_base_url=os.getenv("TRADING_LLM_BASE_URL", "https://api.openai.com/v1").rstrip("/"),
+            llm_api_key=os.getenv("TRADING_LLM_API_KEY") or os.getenv("OPENAI_API_KEY", ""),
+            llm_prompt_version=os.getenv("TRADING_LLM_PROMPT_VERSION", "explain-signal-v1"),
+            llm_monthly_budget_usd=_float("TRADING_LLM_MONTHLY_BUDGET_USD", 1.0),
+            llm_max_output_tokens=_int("TRADING_LLM_MAX_OUTPUT_TOKENS", 700),
+            llm_input_usd_per_1k=_float("TRADING_LLM_INPUT_USD_PER_1K", 0.00015),
+            llm_output_usd_per_1k=_float("TRADING_LLM_OUTPUT_USD_PER_1K", 0.0006),
+            llm_json_mode=_bool("TRADING_LLM_JSON_MODE", True),
+            telegram_enabled=_bool("TRADING_TELEGRAM_ENABLED", False),
+            telegram_bot_token=os.getenv("TRADING_TELEGRAM_BOT_TOKEN", ""),
+            telegram_chat_id=os.getenv("TRADING_TELEGRAM_CHAT_ID", ""),
         )
 
     @property
