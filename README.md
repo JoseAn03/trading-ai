@@ -55,6 +55,31 @@ streamlit run app/streamlit_app.py
 Salidas en `var/reports/`: reporte diario (`.md`/`.json`), backtest (`.md`/`.json`)
 y predicciones auditables (`.csv`). Base en `var/trading.db`.
 
+## Acceso desde el celular (misma Wi-Fi)
+
+1. PC y teléfono en la misma red.
+2. Lanzar el panel escuchando en la red local:
+
+```powershell
+.\.venv\Scripts\python.exe -m streamlit run app/streamlit_app.py --server.address 0.0.0.0 --server.port 8501
+```
+
+3. Abrir en el navegador del teléfono `http://<IP-de-la-PC>:8501`. La IP se ve con
+   `ipconfig` (IPv4 de la interfaz Wi-Fi) y también aparece en la barra lateral del panel.
+
+Firewall de Windows (una sola vez, PowerShell como administrador). Permite el puerto
+**solo desde la subred local**, no desde internet:
+
+```powershell
+New-NetFirewallRule -DisplayName "Trading AI Streamlit 8501" -Direction Inbound `
+  -Action Allow -Protocol TCP -LocalPort 8501 -Profile Private,Public `
+  -RemoteAddress 192.168.1.0/24
+```
+
+El panel **no tiene login**: cualquier dispositivo de la misma red puede leerlo. No
+exponer el puerto a internet. Para acceso fuera de casa, usar una VPN privada como
+Tailscale en la PC y el teléfono.
+
 ## Explicación y entrega (fase 6)
 
 Cada corrida guarda una explicación en la tabla `explanations`, siempre en dos capas:

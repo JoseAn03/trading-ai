@@ -7,6 +7,7 @@ mantiene procesos de ingesta, tal como exige el plan.
 from __future__ import annotations
 
 import json
+import socket
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -20,10 +21,45 @@ from src.data.store import Store
 from src.paper_trading.shadow import equity_points, paper_stats
 from src.quant.risk import RiskLimits
 
-st.set_page_config(page_title="Trading AI — apoyo a decisiones", page_icon="📊", layout="wide")
+st.set_page_config(
+    page_title="Trading AI — apoyo a decisiones",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="auto",
+)
+
+st.markdown(
+    """
+    <style>
+    @media (max-width: 720px) {
+      .block-container { padding-left: .75rem; padding-right: .75rem; padding-top: 1.5rem; }
+      div[data-testid="stHorizontalBlock"] { flex-wrap: wrap; gap: .5rem; }
+      div[data-testid="stColumn"] { flex: 1 1 46% !important; min-width: 46% !important; }
+      div[data-testid="stMetricValue"] { font-size: 1.35rem; }
+      div[data-testid="stMetricLabel"] { font-size: .78rem; }
+      h1 { font-size: 1.7rem; }
+      h2 { font-size: 1.3rem; }
+      h3 { font-size: 1.1rem; }
+      div[data-testid="stTabs"] button { padding-left: .6rem; padding-right: .6rem; }
+      div[data-testid="stMarkdownContainer"] table { display: block; overflow-x: auto; white-space: nowrap; }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 settings = Settings.from_env()
 store = Store(settings.db_path)
+
+
+def _lan_address() -> str | None:
+    """IP local para abrir el panel desde el telefono en la misma red."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            probe.connect(("8.8.8.8", 80))
+            return str(probe.getsockname()[0])
+    except OSError:
+        return None
 
 BACKTEST_REPORTS = (
     ("comparacion-*.md", "Comparación de features"),
@@ -252,6 +288,9 @@ st.sidebar.metric("Modo", mode)
 st.sidebar.metric("Activos", ", ".join(settings.assets))
 st.sidebar.metric("Horizonte", settings.horizon)
 st.sidebar.caption(f"BD: `{settings.db_path}`")
+lan = _lan_address()
+if lan and not lan.startswith("127."):
+    st.sidebar.caption(f"Red local: http://{lan}:8501")
 st.sidebar.caption(
     f"LLM: {'on' if settings.llm_enabled else 'off'} · "
     f"Telegram: {'on' if settings.telegram_enabled else 'off'}"
