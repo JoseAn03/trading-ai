@@ -1,0 +1,34 @@
+# Secretos
+.env
+.env.*
+!.env.example
+
+# Datos y artefactos locales
+var/
+*.db
+*.db-wal
+*.db-shm
+*.log
+reports/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+.coverage.*
+build/
+dist/
+*.egg-info/
+
+# Editores / sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
