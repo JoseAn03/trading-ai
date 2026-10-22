@@ -189,14 +189,18 @@ class Store:
             )
 
     # ------------------------------ lectura ------------------------------
-    def load_candles(self, asset: str, limit: int = 200) -> list[Candle]:
+    def load_candles(self, asset: str, limit: int = 200, source: str | None = None) -> list[Candle]:
+        query = """SELECT asset, ts, open, high, low, close, volume
+                   FROM market_candles WHERE asset = ?"""
+        params: list[object] = [asset.upper()]
+        if source:
+            query += " AND source = ?"
+            params.append(source)
+        query += " ORDER BY ts DESC LIMIT ?"
+        params.append(limit)
+
         with self.connect() as conn:
-            rows = conn.execute(
-                """SELECT asset, ts, open, high, low, close, volume
-                   FROM market_candles WHERE asset = ?
-                   ORDER BY ts DESC LIMIT ?""",
-                (asset.upper(), limit),
-            ).fetchall()
+            rows = conn.execute(query, params).fetchall()
         return [
             Candle(
                 asset=r["asset"],

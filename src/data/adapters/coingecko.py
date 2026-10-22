@@ -10,6 +10,7 @@ para poder reprocesar y auditar sin volver a llamar al proveedor.
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 
 import httpx
@@ -34,7 +35,11 @@ class CoinGeckoAdapter(MarketDataAdapter):
     base_url = "https://api.coingecko.com/api/v3"
 
     def __init__(self, timeout: float = 15.0, client: httpx.Client | None = None) -> None:
-        self._client = client or httpx.Client(timeout=timeout, headers={"accept": "application/json"})
+        headers = {"accept": "application/json"}
+        api_key = os.getenv("COINGECKO_API_KEY", "").strip()
+        if api_key:
+            headers["x-cg-demo-api-key"] = api_key
+        self._client = client or httpx.Client(timeout=timeout, headers=headers)
 
     def _coin_id(self, asset: str) -> str:
         key = asset.upper()
@@ -52,6 +57,10 @@ class CoinGeckoAdapter(MarketDataAdapter):
         response = self._client.get(f"{self.base_url}{path}", params=params)
         if response.status_code == 429:
             raise DataProviderError("rate limit de CoinGecko (429)")
+        if response.status_code == 401:
+            raise DataProviderError(
+                "CoinGecko exige API key (401). Define COINGECKO_API_KEY o usa Binance."
+            )
         response.raise_for_status()
         return response.json()
 
@@ -59,7 +68,7 @@ class CoinGeckoAdapter(MarketDataAdapter):
         coin = self._coin_id(asset)
         payload = self._get(
             f"/coins/{coin}/market_chart",
-            {"vs_currency": "usd", "days": days, "interval": "daily"},
+            {"vs_currency": "usd", "days": days},
         )
         prices = payload.get("prices") or []
         volumes = payload.get("total_volumes") or []

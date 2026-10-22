@@ -2,9 +2,9 @@
 
 Reglas:
 - El modelo se entrena solo con datos anteriores al tramo evaluado.
-- Se aplican costos en la capa de señal; aquí se miden métricas de predicción
-  (log loss, Brier, accuracy) contra el baseline trivial 50/50.
-- Si el modelo no le gana al baseline después de costos, no justifica existir.
+- La etiqueta de la muestra t usa el retorno t -> t+1 (nunca el futuro).
+- Las ventanas de test no se solapan cuando `step == test`.
+- Se miden métricas de predicción y, aparte, el retorno neto tras costos.
 """
 
 from __future__ import annotations
@@ -13,9 +13,28 @@ import math
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from backtests.metrics import brier_score, log_loss
 from src.models.baseline import LogisticBaseline
 from src.quant.features import compute_features
 from src.schemas.market import Candle
+
+
+@dataclass(frozen=True)
+class Sample:
+    features: dict[str, float]
+    label: int
+    next_return: float
+    ts: datetime
+
+
+@dataclass(frozen=True)
+class Prediction:
+    window: int
+    asset: str
+    ts: datetime
+    prob: float
+    label: int
+    next_return: float
 
 
 @dataclass
@@ -66,15 +85,8 @@ class WalkForwardResult:
         }
 
 
-@dataclass(frozen=True)
-class Sample:
-    features: dict[str, float]
-    label: int
-    ts: datetime
-
-
 def build_samples(candles: list[Candle], *, min_history: int = 31) -> list[Sample]:
-    """Features en t, etiqueta = retorno de t a t+1 (nunca usa el futuro)."""
+    """Features en t, etiqueta y retorno de t a t+1."""
     ordered = sorted(candles, key=lambda c: c.ts)
     samples: list[Sample] = []
 
@@ -85,6 +97,7 @@ def build_samples(candles: list[Candle], *, min_history: int = 31) -> list[Sampl
         except ValueError:
             continue
 
+        current, nxt = ordered[i].close, ordered[i + 1].close
         samples.append(
             Sample(
                 features={
@@ -94,64 +107,86 @@ def build_samples(candles: list[Candle], *, min_history: int = 31) -> list[Sampl
                     "volume_relative": f.volume_relative,
                     "vol_20d": f.vol_20d,
                 },
-                label=1 if ordered[i + 1].close > ordered[i].close else 0,
+                label=1 if nxt > current else 0,
+                next_return=nxt / current - 1 if current else 0.0,
                 ts=ordered[i].ts,
             )
         )
     return samples
 
 
-def _metrics(probs: list[float], labels: list[int]) -> tuple[float, float, float]:
-    if not labels:
-        return math.nan, math.nan, math.nan
-    eps = 1e-12
-    n = len(labels)
-    log_loss = -sum(
-        y * math.log(max(p, eps)) + (1 - y) * math.log(max(1 - p, eps))
-        for p, y in zip(probs, labels, strict=True)
-    ) / n
-    brier = sum((p - y) ** 2 for p, y in zip(probs, labels, strict=True)) / n
-    accuracy = sum((p >= 0.5) == bool(y) for p, y in zip(probs, labels, strict=True)) / n
-    return log_loss, brier, accuracy
-
-
-def walk_forward(
-    candles: list[Candle], *, train: int = 60, test: int = 20, step: int = 20
-) -> WalkForwardResult:
+def walk_forward_predictions(
+    candles: list[Candle], *, train: int = 365, test: int = 60, step: int = 60
+) -> list[Prediction]:
+    """Predicciones fuera de muestra. Cada una se generó antes de conocer su resultado."""
     samples = build_samples(candles)
     if len(samples) < train + test:
-        raise ValueError(f"muestras insuficientes: {len(samples)} (se requieren {train + test})")
+        raise ValueError(
+            f"muestras insuficientes: {len(samples)} (se requieren {train + test}). "
+            "Aumenta --days o reduce --train/--test."
+        )
 
-    result = WalkForwardResult()
+    predictions: list[Prediction] = []
     start = 0
+    window_idx = 0
+    asset = candles[-1].asset if candles else "UNKNOWN"
 
     while start + train + test <= len(samples):
         train_slice = samples[start : start + train]
         test_slice = samples[start + train : start + train + test]
 
-        model = LogisticBaseline(epochs=400, learning_rate=0.15).fit(
+        model = LogisticBaseline(epochs=500, learning_rate=0.15).fit(
             [s.features for s in train_slice], [s.label for s in train_slice]
         )
-        probs = [float(p) for p in model.predict_proba([s.features for s in test_slice])]
-        labels = [s.label for s in test_slice]
+        probs = model.predict_proba([s.features for s in test_slice])
 
-        log_loss, brier, accuracy = _metrics(probs, labels)
-        base_log_loss, base_brier, _ = _metrics([0.5] * len(labels), labels)
+        for s, p in zip(test_slice, probs, strict=True):
+            predictions.append(
+                Prediction(
+                    window=window_idx,
+                    asset=asset,
+                    ts=s.ts,
+                    prob=min(max(float(p), 0.0), 1.0),
+                    label=s.label,
+                    next_return=s.next_return,
+                )
+            )
+
+        window_idx += 1
+        start += step
+
+    return predictions
+
+
+def walk_forward(
+    candles: list[Candle], *, train: int = 60, test: int = 20, step: int = 20
+) -> WalkForwardResult:
+    predictions = walk_forward_predictions(candles, train=train, test=test, step=step)
+
+    result = WalkForwardResult()
+    by_window: dict[int, list[Prediction]] = {}
+    for p in predictions:
+        by_window.setdefault(p.window, []).append(p)
+
+    for idx in sorted(by_window):
+        group = by_window[idx]
+        probs = [p.prob for p in group]
+        labels = [p.label for p in group]
+        base = [0.5] * len(labels)
 
         result.windows.append(
             WindowResult(
-                start=test_slice[0].ts,
-                end=test_slice[-1].ts,
-                n=len(labels),
-                log_loss=log_loss,
-                brier=brier,
-                accuracy=accuracy,
-                log_loss_baseline=base_log_loss,
-                brier_baseline=base_brier,
+                start=group[0].ts,
+                end=group[-1].ts,
+                n=len(group),
+                log_loss=log_loss(probs, labels),
+                brier=brier_score(probs, labels),
+                accuracy=sum((p >= 0.5) == bool(y) for p, y in zip(probs, labels, strict=True))
+                / len(labels),
+                log_loss_baseline=log_loss(base, labels),
+                brier_baseline=brier_score(base, labels),
             )
         )
-        result.model_weights = model.describe()
-        start += step
 
     return result
 
@@ -159,8 +194,9 @@ def walk_forward(
 def evaluate_with_costs(
     probs: list[float], returns: list[float], *, cost_rate: float = 0.002, threshold: float = 0.55
 ) -> dict[str, float]:
-    """Retorno neto simulado de operar solo cuando p >= threshold."""
-    assert len(probs) == len(returns)
+    """Retorno neto simulado de operar solo cuando p >= threshold (sin componer)."""
+    if len(probs) != len(returns):
+        raise ValueError("probs y retornos deben tener la misma longitud")
     trades = 0
     gross = 0.0
     for p, r in zip(probs, returns, strict=True):
@@ -202,4 +238,3 @@ if __name__ == "__main__":
             f"acc {w.accuracy:.1%}"
         )
     print("Resumen:", outcome.summary())
-    print("Pesos:", {k: round(v, 4) for k, v in outcome.model_weights.items()})

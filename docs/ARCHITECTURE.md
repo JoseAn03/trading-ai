@@ -37,6 +37,8 @@ Panel Streamlit / Telegram (futuro)
 | `src/quant/risk` | Bloquea y dimensiona | No explica |
 | `src/reporting` | Redacta y estructura | No calcula |
 | `src/paper_trading` | Simula y contabiliza | No toca exchanges |
+| `backtests/metrics` | Calibración y retorno neto | No entrena modelos |
+| `backtests/run_backtest` | Orquesta backtest y reporte | No decide por ti |
 | `jobs/daily_run` | Orquesta el flujo | No contiene lógica de dominio |
 
 ## Invariantes técnicas

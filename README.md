@@ -11,9 +11,9 @@ Plataforma personal de **apoyo a decisiones** para cripto. No adivina el precio:
 | --- | --- |
 | 0. Definición y alcance | ✅ `PRODUCT_DECISIONS.md`, `RISK_LIMITS.md` |
 | 1. Esqueleto y panel | ✅ Streamlit + Docker + CI |
-| 2. Ingesta y calidad de datos | ✅ CoinGecko + validación + SQLite (degradación controlada) |
+| 2. Ingesta y calidad de datos | ✅ Binance (OHLCV real) + CoinGecko opcional + validación + SQLite |
 | 3. Motor cuantitativo mínimo | ✅ features + señal determinista + circuit breakers |
-| 4. Backtesting | 🟡 baseline logístico walk-forward + métricas |
+| 4. Backtesting | ✅ walk-forward real, calibración (ECE) y gate de robustez |
 | 5. Paper trading | 🟡 motor de simulación, falta el loop diario persistente |
 | 6. IA de explicación | 🟡 prompt + validación Pydantic, sin proveedor conectado |
 | 7. Operación 24/7 + agente | ⛔ no empezado (a propósito) |
@@ -39,14 +39,18 @@ pytest
 # 2) corrida demo (datos sintéticos, sin red)
 python -m jobs.daily_run
 
-# 3) corrida real (CoinGecko, sin API key)
+# 3) corrida real (Binance, sin API key)
 python -m jobs.daily_run --live
 
-# 4) panel
+# 4) backtest con datos reales + calibración
+python -m backtests.run_backtest --source live --days 1000 --assets BTC,ETH
+
+# 5) panel
 streamlit run app/streamlit_app.py
 ```
 
-Salidas en `var/reports/reporte-YYYY-MM-DD.md` y `.json`, base en `var/trading.db`.
+Salidas en `var/reports/`: reporte diario (`.md`/`.json`), backtest (`.md`/`.json`)
+y predicciones auditables (`.csv`). Base en `var/trading.db`.
 
 Docker:
 
@@ -69,7 +73,7 @@ trading-ai/
 │   ├── paper_trading/      # simulación con costos
 │   └── schemas/            # contratos Pydantic
 ├── jobs/daily_run.py       # corrida diaria end-to-end
-├── backtests/              # walk-forward sin fuga temporal
+├── backtests/              # walk-forward, métricas y CLI de backtest
 ├── tests/                  # unitarias + integración
 ├── prompts/                # prompts versionados
 └── docs/                   # arquitectura y decisiones
@@ -92,19 +96,21 @@ pytest -q                       # tests
 pytest --cov=src --cov-report=term-missing
 ruff check .                    # lint
 ruff format .                   # formato
-python -m backtests.walk_forward # ver docstring del módulo para uso programático
+python -m backtests.walk_forward    # humo con datos sintéticos
+python -m backtests.run_backtest --source live --days 1000 --assets BTC,ETH
 ```
 
 ## Riesgos conocidos de esta versión
 
 - El baseline es una **regresión logística simple sobre 5 features**: sirve para medir, no para confiar.
 - Los costos son estáticos (bps fijos); no modelan profundidad de libro ni impacto de mercado.
-- CoinGecko limita llamadas y puede devolver velas parciales: la última se descarta.
-- Sin backtest con datos reales todavía: **no hay evidencia de ventaja**. Todo sigue en modo análisis.
+- Binance devuelve pares **USDT**: se asume USDT ≈ USD en el backtest.
+- CoinGecko ahora exige API key (`COINGECKO_API_KEY`); Binance es la fuente principal.
+- **Backtest 2026-10-22 (1.000 días, BTC/ETH): sin ventaja demostrada.** Log loss 0,6978 vs 0,6931 del baseline. Ver `docs/BACKTEST-RESULTS.md`.
 
 ## Próximos pasos
 
-1. `RISK_LIMITS.md` revisado y aprobado antes de cualquier paper trading.
-2. Backtest con datos históricos reales (2+ años, varios activos) y calibración.
-3. Loop de paper trading diario que congele señales antes del resultado.
+1. Probar hipótesis de mejora **una a la vez** con el mismo protocolo de backtest.
+2. Repetir en otro periodo/activos antes de creer cualquier resultado positivo.
+3. Loop de paper trading diario que congele señales antes del resultado (**solo si** aparece edge).
 4. Solo después: capa de explicación con LLM y entrega por Telegram.

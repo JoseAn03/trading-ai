@@ -30,9 +30,9 @@ log = logging.getLogger("daily_run")
 def _adapter(live: bool) -> MarketDataAdapter:
     if not live:
         return StaticAdapter()
-    from src.data.adapters.coingecko import CoinGeckoAdapter
+    from src.data.adapters.binance import BinanceAdapter
 
-    return CoinGeckoAdapter()
+    return BinanceAdapter()
 
 
 def run(*, live: bool = False, settings: Settings | None = None, out_dir: Path | None = None) -> dict:
