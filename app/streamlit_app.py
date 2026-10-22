@@ -7,6 +7,7 @@ mantiene procesos de ingesta, tal como exige el plan.
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
@@ -19,6 +20,21 @@ st.set_page_config(page_title="Trading AI — apoyo a decisiones", page_icon="�
 
 settings = Settings.from_env()
 store = Store(settings.db_path)
+
+BACKTEST_REPORTS = (
+    ("comparacion-*.md", "Comparación de features"),
+    ("barrido-*.md", "Barrido de horizontes"),
+    ("backtest-*.md", "Backtest walk-forward"),
+)
+
+
+def _backtest_reports() -> list[tuple[str, Path]]:
+    """Reportes de backtest disponibles, los más recientes primero."""
+    folder = ROOT / "var" / "reports"
+    found = [
+        (label, path) for pattern, label in BACKTEST_REPORTS for path in folder.glob(pattern)
+    ]
+    return sorted(found, key=lambda item: item[1].stat().st_mtime, reverse=True)
 
 st.title("Trading AI — apoyo a decisiones")
 st.caption(
@@ -35,8 +51,8 @@ st.sidebar.caption(f"BD: `{settings.db_path}`")
 if settings.demo_mode:
     st.sidebar.info("Modo demo: los datos pueden ser sintéticos y no deben usarse para decidir.")
 
-tab_resumen, tab_senales, tab_riesgo, tab_auditoria = st.tabs(
-    ["Resumen", "Señales", "Riesgo", "Auditoría"]
+tab_resumen, tab_senales, tab_riesgo, tab_backtests, tab_auditoria = st.tabs(
+    ["Resumen", "Señales", "Riesgo", "Backtests", "Auditoría"]
 )
 
 signals = []
@@ -81,7 +97,7 @@ with tab_senales:
                 }
                 for s in signals
             ],
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
@@ -112,8 +128,8 @@ with tab_riesgo:
                 f"{limits.max_daily_loss_pct}%",
                 f"{limits.max_weekly_loss_pct}%",
                 f"{limits.max_drawdown_pct}%",
-                limits.max_trades_per_day,
-                limits.max_correlation,
+                f"{limits.max_trades_per_day}",
+                f"{limits.max_correlation}",
             ],
         }
     )
@@ -121,6 +137,40 @@ with tab_riesgo:
         "El kill switch debe poder activarse manualmente y no depende del LLM ni del agente. "
         "Ver RISK_LIMITS.md."
     )
+
+with tab_backtests:
+    st.subheader("Evidencia de backtesting")
+    st.caption(
+        "Reportes generados por los CLIs de backtest. Se leen tal cual, sin recalcular nada. "
+        "Un backtest no predice el futuro: mide si el método habría tenido ventaja."
+    )
+    reports = _backtest_reports()
+    if not reports:
+        st.warning("No hay reportes de backtest todavía.")
+        st.code(
+            "python -m backtests.run_backtest --source live --days 1000 --assets BTC,ETH",
+            language="bash",
+        )
+    else:
+        labels = [f"{label} — {path.stem}" for label, path in reports]
+        choice = st.selectbox(
+            "Reporte", options=list(range(len(reports))), format_func=lambda i: labels[i]
+        )
+        label, path = reports[choice]
+        stamp = datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+        st.caption(f"{label} · `{path.relative_to(ROOT)}` · generado {stamp}")
+        st.download_button(
+            "Descargar Markdown",
+            data=path.read_text(encoding="utf-8"),
+            file_name=path.name,
+            mime="text/markdown",
+        )
+        st.markdown(path.read_text(encoding="utf-8"))
+
+        json_path = path.with_suffix(".json")
+        if json_path.exists():
+            with st.expander("Datos crudos (JSON)"):
+                st.json(json.loads(json_path.read_text(encoding="utf-8")))
 
 with tab_auditoria:
     st.subheader("Trazabilidad")
