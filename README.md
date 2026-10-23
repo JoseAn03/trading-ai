@@ -13,7 +13,7 @@ Plataforma personal de **apoyo a decisiones** para cripto. Calcula un **score he
 | 1. Esqueleto y panel | ✅ Streamlit + Docker + CI |
 | 2. Ingesta y calidad de datos | ✅ Binance (OHLCV real) + CoinGecko opcional + validación + SQLite |
 | 3. Motor cuantitativo mínimo | ✅ features + señal determinista + circuit breakers |
-| 4. Backtesting | ✅ walk-forward real, calibración (ECE) y gate de robustez |
+| 4. Backtesting | ✅ walk-forward real, calibración (ECE) y gate de robustez; Fase 2 (2026-10-23): 14 candidatos, **sin promoción** (`docs/EXPERIMENTS.md`) |
 | 5. Paper trading | ✅ persistente en sombra: congela la entrada, resuelve al vencer y se ve en el panel |
 | 6. IA de explicación | ✅ determinista + LLM validado con guardia de cifras y fallback; entrega Telegram opcional |
 | 7. Operación 24/7 + agente | ⛔ no empezado (a propósito) |
@@ -236,6 +236,7 @@ ruff format .                   # formato
 python -m backtests.walk_forward    # humo con datos sintéticos
 python -m backtests.run_backtest --source live --days 1000 --assets BTC,ETH
 python -m backtests.compare_features --source live --days 1500 --feature-sets v0.1,v0.2
+python -m backtests.experiments dev --source cache --days 1500 --assets BTC,ETH
 ```
 
 ## Riesgos conocidos de esta versión
@@ -249,14 +250,15 @@ python -m backtests.compare_features --source live --days 1500 --feature-sets v0
 - **Backtest 2026-10-22 (1.000 días, BTC/ETH): sin ventaja demostrada.** Log loss 0,6978 vs 0,6931 del baseline. Ver `docs/BACKTEST-RESULTS.md`.
 - **Barrido de horizontes 1–7 días: también sin ventaja.** El deterioro es monótono; no era un problema de horizonte.
 - **A/B de features de régimen (v0.2): peor que v0.1** en log loss, calibración y retorno. Ver `docs/BACKTEST-RESULTS.md`.
+- **Fase 2 (2026-10-23): 14 candidatos pre-registrados, ninguno pasa el gate.** El mejor Sharpe de desarrollo (`logit_v03_h1_t60`, 2.00) falló en el holdout único: Sharpe −0.69, retorno −7.35 % y 0/2 activos positivos. El paper se queda con la configuración actual; plan en `docs/PAPER-EVALUATION.md` y detalle en `docs/EXPERIMENTS.md`.
 - **GitHub Pages es público y sin login.** Cualquiera con la URL puede leer el panel.
 - **GitHub no disparó el `schedule` en las pruebas iniciales.** El workflow quedó activo; el botón **Actualizar** y el comando manual funcionan. Checklist de Settings en `docs/OPERATIONS.md`. Si el cron se activa, se reintenta cada hora y el sitio avisa si el dato supera la tolerancia (36 h en velas diarias).
 - **La PWA no es una app nativa:** es un sitio instalable; necesita internet para actualizarse.
 
 ## Próximos pasos
 
-1. Mantener el **paper trading en sombra** acumulando historial prospectivo; no se promociona mientras no haya edge.
-2. Si se sigue investigando, cambiar de **datos** (funding, open interest, on-chain), no de features de OHLCV.
+1. Mantener el **paper trading en sombra** acumulando historial prospectivo con la configuración actual; no se promociona mientras no haya edge. Plan: ≥30 operaciones cerradas o ≥12 semanas, sin cambiar parámetros (`docs/PAPER-EVALUATION.md`).
+2. Si se sigue investigando, cambiar de **datos** (funding, open interest, on-chain), no de features de OHLCV; el holdout de Fase 2 ya se consumió y no se reutiliza.
 3. Revisar el historial de **explicaciones y su costo**; ajustar el prompt no puede cambiar el cálculo.
 4. Operación 24/7 (fase 7) solo con el historial y los límites revisados.
 5. Revisar que el workflow diario siga verde y que el sitio muestre datos frescos.
