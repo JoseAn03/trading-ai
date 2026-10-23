@@ -103,7 +103,7 @@ def build_report(
     ]
     if actionable:
         lines += [
-            "| Activo | Señal | Prob. neta | Ret. neto est. | Conf. | Horizonte | Tamaño | Razón principal |",
+            "| Activo | Señal | Score heurístico | Ret. neto est. | Conf. | Horizonte | Tamaño | Razón principal |",
             "| --- | --- | --- | --- | --- | --- | --- | --- |",
         ]
         lines += [_table_row(s, decisions.get(s.asset)) for s in actionable]

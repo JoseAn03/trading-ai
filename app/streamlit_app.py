@@ -457,7 +457,7 @@ with tab_senales:
                 {
                     "Activo": s["asset"],
                     "Señal": s["signal"],
-                    "Prob. neta": round(s["probability_net"], 3),
+                    "Score heurístico": round(s["probability_net"], 3),
                     "Ret. neto est.": f"{s['expected_ret_net'] * 100:+.2f}%",
                     "Confianza": s["confidence"],
                     "Rank": s["rank_position"],

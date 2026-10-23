@@ -99,6 +99,8 @@ class BinanceAdapter(MarketDataAdapter):
     def fetch_quote(self, asset: str) -> Candle:
         symbol = self._symbol(asset)
         payload = self._get("/ticker/price", {"symbol": symbol})
-        price = float(payload["price"])  # type: ignore[index]
+        if not isinstance(payload, dict):
+            raise DataProviderError(f"Binance devolvió un payload inesperado para {symbol}")
+        price = float(payload["price"])
         now = datetime.now(UTC)
         return Candle(asset=asset.upper(), ts=now, open=price, high=price, low=price, close=price, volume=0.0)

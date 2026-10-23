@@ -1,6 +1,6 @@
 # trading-ai
 
-Plataforma personal de **apoyo a decisiones** para cripto. No adivina el precio: estima la probabilidad de que el retorno neto (después de costos) sea positivo en un horizonte, ordena las mejores oportunidades y dice explícitamente **cuándo no operar**.
+Plataforma personal de **apoyo a decisiones** para cripto. Calcula un **score heurístico** (logit con pesos fijos, no una probabilidad calibrada) de que el retorno neto después de costos sea positivo en un horizonte, ordena las oportunidades y dice explícitamente **cuándo no operar**.
 
 > Análisis automatizado. No es asesoría financiera ni garantía de rentabilidad.
 > **No ejecuta órdenes reales** y no almacena claves de exchange.
@@ -28,7 +28,8 @@ El panel también se publica como **PWA** en GitHub Pages:
   y publica el sitio. No necesita la PC encendida ni la misma red.
 - El workflow tiene `schedule` **cada hora a los :15 UTC** y un paso de control
   que solo ejecuta el motor si todavía no hay datos de hoy. Así evita duplicados
-  y, si GitHub demora un intento, el siguiente lo reintenta.
+  y, si GitHub demora un intento, el siguiente lo reintenta. Si no hay corrida,
+  tampoco vuelve a desplegar el sitio.
 - Costo: **USD 0** (repositorio público; GitHub Actions y Pages incluidos).
 - Es una **vista móvil de solo lectura** generada desde la misma SQLite. El panel
   Streamlit completo sigue disponible en local.
@@ -38,13 +39,16 @@ El panel también se publica como **PWA** en GitHub Pages:
 > **Estado del cron (23 Oct 2026):** GitHub no disparó el `schedule` en las
 > pruebas iniciales de este repositorio nuevo. El workflow quedó activo y el
 > disparo manual funciona; por eso el panel incluye el enlace **Actualizar** y
-> esta guía. El cron se reintenta cada hora cuando GitHub lo active.
+> esta guía. El cron se reintenta cada hora cuando GitHub lo active. Checklist
+> de Settings en `docs/OPERATIONS.md`.
 
 ### Actualizar desde el celular
 
 1. En el panel, toca **Actualizar** (arriba a la derecha), o abre
    <https://github.com/JoseAn03/trading-ai/actions/workflows/daily.yml> con tu cuenta.
-2. Toca **Run workflow** → rama `main` → **Run workflow**.
+2. Toca **Run workflow** → rama `main` → **Run workflow**. Si ya hay datos de
+   hoy y quieres forzar una actualización, marca `force=true`; sin eso la
+   guardia no corre el motor ni vuelve a publicar.
 3. Espera cerca de un minuto y recarga la PWA. El control por fecha evita
    duplicar los datos del día.
 
@@ -59,16 +63,24 @@ El panel también se publica como **PWA** en GitHub Pages:
 ### Cómo se actualiza
 
 - Workflow: `.github/workflows/daily.yml` (`schedule` cada hora + `workflow_dispatch`).
-- El paso de control lee `var/trading.db`: si ya hay una señal con fecha de hoy,
-  omite el motor y no duplica datos; igual regenera y publica el sitio.
+- El paso de control lee `var/trading.db`: si ya hay una señal con fecha UTC de
+  hoy, omite motor, exportación y despliegue. No duplica datos ni publica de más.
 - El `schedule` no se disparó en las pruebas iniciales; el botón **Actualizar** y
   el comando `gh workflow run` son la vía confiable por ahora. Sin `force`, una
-  corrida manual respeta el control y solo actualiza el sitio.
+  corrida manual respeta el control y no publica; para actualizar a mano hay que
+  usar `-f force=true`.
+- **Día operativo UTC:** las velas diarias de Binance cierran a 00:00 UTC, que en
+  Costa Rica son las 18:00. La guardia usa fecha UTC a propósito; no es un bug.
+  Ver `docs/OPERATIONS.md` y la lista de ajustes de Actions que debe revisar el
+  dueño.
 - Corre `python -m jobs.daily_run --live` con `BINANCE_BASE_URL` apuntando al
   mirror público `https://data-api.binance.vision/api/v3` (evita bloqueos
   geográficos de los runners).
 - Compacta SQLite con `VACUUM INTO` y versiona `var/trading.db` y los reportes
   diarios con `git add -f` (están en `.gitignore` a propósito para el uso local).
+  Aún es un repo público: ver opciones en `docs/STATE_STORAGE.md`.
+- El cómputo corre con `contents: read`; un job de publicación separado hace el
+  commit del estado y el deploy de Pages con permisos elevados.
 - Genera `dist/` con `python -m jobs.export_static --out dist` y lo publica con
   `actions/deploy-pages`.
 
@@ -228,15 +240,17 @@ python -m backtests.compare_features --source live --days 1500 --feature-sets v0
 
 ## Riesgos conocidos de esta versión
 
-- El baseline es una **regresión logística simple sobre 5 features**: sirve para medir, no para confiar.
+- El baseline es una **regresión logística simple sobre 5 features**: sirve para medir, no para confiar. En vivo el score es **heurístico y no calibrado**; la regresión entrenada solo vive en los backtests (decisión de Fase 2).
 - Los costos son estáticos (bps fijos); no modelan profundidad de libro ni impacto de mercado.
+- El paper trade usa el precio vigente al momento de la corrida como entrada ejecutada y guarda el cierre de la señal por separado. La diferencia se reporta como **sesgo de entrada**; no es una entrada al cierre mágica.
+- La BD y los reportes siguen versionados en un repo público; el crecimiento es ilimitado. Opciones y recomendación en `docs/STATE_STORAGE.md`.
 - Binance devuelve pares **USDT**: se asume USDT ≈ USD en el backtest.
 - CoinGecko ahora exige API key (`COINGECKO_API_KEY`); Binance es la fuente principal.
 - **Backtest 2026-10-22 (1.000 días, BTC/ETH): sin ventaja demostrada.** Log loss 0,6978 vs 0,6931 del baseline. Ver `docs/BACKTEST-RESULTS.md`.
 - **Barrido de horizontes 1–7 días: también sin ventaja.** El deterioro es monótono; no era un problema de horizonte.
 - **A/B de features de régimen (v0.2): peor que v0.1** en log loss, calibración y retorno. Ver `docs/BACKTEST-RESULTS.md`.
 - **GitHub Pages es público y sin login.** Cualquiera con la URL puede leer el panel.
-- **GitHub no disparó el `schedule` en las pruebas iniciales.** El workflow quedó activo; el botón **Actualizar** y el comando manual funcionan. Si el cron se activa, se reintenta cada hora y el sitio avisa si el dato supera 36 h.
+- **GitHub no disparó el `schedule` en las pruebas iniciales.** El workflow quedó activo; el botón **Actualizar** y el comando manual funcionan. Checklist de Settings en `docs/OPERATIONS.md`. Si el cron se activa, se reintenta cada hora y el sitio avisa si el dato supera la tolerancia (36 h en velas diarias).
 - **La PWA no es una app nativa:** es un sitio instalable; necesita internet para actualizarse.
 
 ## Próximos pasos
