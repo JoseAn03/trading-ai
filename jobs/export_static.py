@@ -651,6 +651,7 @@ def _market_panel(store: Store, signals: list[dict], now: datetime) -> str:
 
 def _risk_panel() -> str:
     limits = RiskLimits()
+    age_tolerance = limits.data_age_tolerance_minutes
     rows = [
         ("Riesgo por operacion", f"{limits.max_risk_per_trade_pct:.2f}%"),
         ("Exposicion por activo", f"{limits.max_exposure_per_asset_pct:.2f}%"),
@@ -659,7 +660,7 @@ def _risk_panel() -> str:
         ("Drawdown maximo", f"{limits.max_drawdown_pct:.2f}%"),
         ("Operaciones por dia", str(limits.max_trades_per_day)),
         ("Correlacion maxima", f"{limits.max_correlation:.2f}"),
-        ("Antiguedad maxima del dato", f"{limits.max_data_age_minutes} min"),
+        ("Antiguedad maxima del dato", f"{age_tolerance:.0f} min ({age_tolerance / 60:.1f} h)"),
     ]
     body = "".join(
         f'<div class="row"><span class="muted">{_safe(label)}</span><b>{_safe(value)}</b></div>'
