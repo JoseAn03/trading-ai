@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-10-23T03:07:49.986770Z",
+  "generated_at": "2026-10-23T03:13:41.335291Z",
   "horizon": "24h",
   "signals": [
     {
       "asset": "BTC",
       "horizon": "24h",
-      "timestamp": "2026-10-23T03:07:49.986770Z",
+      "timestamp": "2026-10-23T03:13:41.335291Z",
       "data_timestamp": "2026-10-22T23:59:59.999000Z",
       "signal": "NO_TRADE",
       "probability_up": 0.5169,
@@ -42,7 +42,7 @@
     {
       "asset": "ETH",
       "horizon": "24h",
-      "timestamp": "2026-10-23T03:07:49.986770Z",
+      "timestamp": "2026-10-23T03:13:41.335291Z",
       "data_timestamp": "2026-10-22T23:59:59.999000Z",
       "signal": "NO_TRADE",
       "probability_up": 0.3973379072274834,
