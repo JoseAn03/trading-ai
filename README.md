@@ -24,16 +24,30 @@ El panel también se publica como **PWA** en GitHub Pages:
 
 **https://josean03.github.io/trading-ai/**
 
-- Se actualiza sola todos los días: GitHub Actions corre la ingesta, el motor,
-  el paper trading y el exportador, y publica el sitio.
-- No necesita la PC encendida ni la misma red.
-- El workflow se intenta **cada hora a los :15 UTC** y solo ejecuta el motor si
-  todavía no hay datos de hoy. Así cubre demoras de GitHub y evita duplicados.
+- GitHub Actions corre la ingesta, el motor, el paper trading y el exportador,
+  y publica el sitio. No necesita la PC encendida ni la misma red.
+- El workflow tiene `schedule` **cada hora a los :15 UTC** y un paso de control
+  que solo ejecuta el motor si todavía no hay datos de hoy. Así evita duplicados
+  y, si GitHub demora un intento, el siguiente lo reintenta.
 - Costo: **USD 0** (repositorio público; GitHub Actions y Pages incluidos).
 - Es una **vista móvil de solo lectura** generada desde la misma SQLite. El panel
   Streamlit completo sigue disponible en local.
 - No incluye claves ni ejecución real. En la nube el LLM está apagado: la
   explicación es determinista.
+
+> **Estado del cron (23 Oct 2026):** GitHub no disparó el `schedule` en las
+> pruebas iniciales de este repositorio nuevo. El workflow quedó activo y el
+> disparo manual funciona; por eso el panel incluye el enlace **Actualizar** y
+> esta guía. El cron se reintenta cada hora cuando GitHub lo active.
+
+### Actualizar desde el celular
+
+1. En el panel, toca **Actualizar** (arriba a la derecha), o abre
+   <https://github.com/JoseAn03/trading-ai/actions/workflows/daily.yml> con tu cuenta.
+2. Toca **Run workflow** → rama `main` → **Run workflow**.
+3. Espera cerca de un minuto y recarga la PWA. El control por fecha evita
+   duplicar los datos del día.
+
 
 ### Instalar en el celular
 
@@ -47,6 +61,9 @@ El panel también se publica como **PWA** en GitHub Pages:
 - Workflow: `.github/workflows/daily.yml` (`schedule` cada hora + `workflow_dispatch`).
 - El paso de control lee `var/trading.db`: si ya hay una señal con fecha de hoy,
   omite el motor y no duplica datos; igual regenera y publica el sitio.
+- El `schedule` no se disparó en las pruebas iniciales; el botón **Actualizar** y
+  el comando `gh workflow run` son la vía confiable por ahora. Sin `force`, una
+  corrida manual respeta el control y solo actualiza el sitio.
 - Corre `python -m jobs.daily_run --live` con `BINANCE_BASE_URL` apuntando al
   mirror público `https://data-api.binance.vision/api/v3` (evita bloqueos
   geográficos de los runners).
@@ -219,7 +236,7 @@ python -m backtests.compare_features --source live --days 1500 --feature-sets v0
 - **Barrido de horizontes 1–7 días: también sin ventaja.** El deterioro es monótono; no era un problema de horizonte.
 - **A/B de features de régimen (v0.2): peor que v0.1** en log loss, calibración y retorno. Ver `docs/BACKTEST-RESULTS.md`.
 - **GitHub Pages es público y sin login.** Cualquiera con la URL puede leer el panel.
-- **El cron de GitHub Actions puede demorarse.** Se reintenta cada hora y el sitio muestra la antigüedad del dato; avisa si supera 36 h.
+- **GitHub no disparó el `schedule` en las pruebas iniciales.** El workflow quedó activo; el botón **Actualizar** y el comando manual funcionan. Si el cron se activa, se reintenta cada hora y el sitio avisa si el dato supera 36 h.
 - **La PWA no es una app nativa:** es un sitio instalable; necesita internet para actualizarse.
 
 ## Próximos pasos

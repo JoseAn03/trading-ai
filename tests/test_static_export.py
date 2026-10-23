@@ -40,6 +40,8 @@ def test_export_static_contains_latest_signal_and_pwa_assets(tmp_path):
     assert "history.replaceState" not in html
     assert "C:\\Users" not in html
     assert "reporte.md" in html
+    assert "actions/workflows/daily.yml" in html
+    assert "Run workflow" in html
     assert (out / "manifest.webmanifest").exists()
     assert (out / "sw.js").read_text(encoding="utf-8").startswith("\nconst CACHE")
     assert (out / "icon-192.png").read_bytes().startswith(b"\x89PNG")
@@ -64,6 +66,24 @@ def test_export_static_handles_empty_database(tmp_path):
     assert (out / "reports").is_dir()
 
 
+def test_export_static_uses_signal_time_for_updated_kpi(tmp_path):
+    store = Store(tmp_path / "trading.db")
+    store.init_schema()
+    store.save_signal(make_signal(asset="BTC", ts=NOW - timedelta(hours=3)))
+
+    out = tmp_path / "dist"
+    index = export_static(
+        store=store,
+        out_dir=out,
+        reports_dir=tmp_path / "reports",
+        now=NOW,
+    )
+
+    html = index.read_text(encoding="utf-8")
+    assert '<div class="label">Actualizado</div><div class="value">22 Oct 09:00</div>' in html
+    assert "Sitio generado 22 Oct 2026 12:00 UTC" in html
+
+
 def test_export_static_copies_latest_report(tmp_path):
     store = Store(tmp_path / "trading.db")
     store.init_schema()
@@ -80,3 +100,4 @@ def test_export_static_copies_latest_report(tmp_path):
     export_static(store=store, out_dir=out, reports_dir=reports, now=NOW)
 
     assert (out / "reports" / "reporte-2026-10-22.md").read_text(encoding="utf-8") == "nuevo"
+

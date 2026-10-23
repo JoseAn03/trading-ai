@@ -797,7 +797,10 @@ def export_static(*, store: Store, out_dir: Path, reports_dir: Path, now: dateti
       <h1>Trading AI</h1>
       <div class="small muted">Panel personal · solo lectura · sin ejecucion real</div>
     </div>
-    <div class="small muted">{_safe(data_age)}</div>
+    <div class="small muted">
+      {_safe(data_age)} |
+      <a href="https://github.com/JoseAn03/trading-ai/actions/workflows/daily.yml" target="_blank" rel="noopener" title="Abrir GitHub Actions y ejecutar el workflow daily">Actualizar</a>
+    </div>
   </header>
 
   <nav class="tabs" aria-label="Secciones">
@@ -832,6 +835,9 @@ def export_static(*, store: Store, out_dir: Path, reports_dir: Path, now: dateti
   <footer>
     Sitio generado {_safe(stamp.strftime("%d %b %Y %H:%M UTC"))} desde SQLite.
     No es asesoria financiera. Sin claves, sin ordenes, sin capital real.
+    <br>Actualizar datos: abre
+    <a href="https://github.com/JoseAn03/trading-ai/actions/workflows/daily.yml" target="_blank" rel="noopener">GitHub Actions</a>,
+    elige "Run workflow" y espera cerca de un minuto.
     <br>En el celular: menu del navegador → "Agregar a la pantalla de inicio".
   </footer>
 </div>
