@@ -328,6 +328,8 @@ def _latest_backtest(reports_dir: Path) -> tuple[dict | None, str | None]:
 
 def _copy_reports(reports_dir: Path, out_dir: Path) -> list[dict[str, str]]:
     target = out_dir / "reports"
+    if target.exists() and target.resolve() != reports_dir.resolve():
+        shutil.rmtree(target)
     target.mkdir(parents=True, exist_ok=True)
     specs = [
         ("reporte-*.md", "Reporte diario"),
@@ -337,7 +339,7 @@ def _copy_reports(reports_dir: Path, out_dir: Path) -> list[dict[str, str]]:
     ]
     links: list[dict[str, str]] = []
     for pattern, label in specs:
-        files = sorted(reports_dir.glob(pattern), key=lambda p: p.stat().st_mtime, reverse=True)
+        files = sorted(reports_dir.glob(pattern), key=lambda p: p.name, reverse=True)
         if not files:
             continue
         shutil.copy2(files[0], target / files[0].name)

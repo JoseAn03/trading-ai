@@ -93,11 +93,14 @@ def test_export_static_copies_latest_report(tmp_path):
     newer = reports / "reporte-2026-10-22.md"
     older.write_text("viejo", encoding="utf-8")
     newer.write_text("nuevo", encoding="utf-8")
-    stamp = (NOW - timedelta(days=1)).timestamp()
+    # El archivo con fecha anterior tiene mtime mas nuevo: debe ganar el nombre.
+    stamp = (NOW + timedelta(days=1)).timestamp()
     os.utime(older, (stamp, stamp))
 
     out = tmp_path / "dist"
-    export_static(store=store, out_dir=out, reports_dir=reports, now=NOW)
+    index = export_static(store=store, out_dir=out, reports_dir=reports, now=NOW)
 
     assert (out / "reports" / "reporte-2026-10-22.md").read_text(encoding="utf-8") == "nuevo"
+    assert not (out / "reports" / "reporte-2026-10-21.md").exists()
+    assert 'href="reports/reporte-2026-10-22.md"' in index.read_text(encoding="utf-8")
 
