@@ -13,12 +13,13 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
+import httpx
+
 from src.config.settings import LOGS_DIR, ROOT, Settings
-from src.data.adapters.base import MarketDataAdapter, StaticAdapter
+from src.data.adapters.base import DataProviderError, MarketDataAdapter, StaticAdapter
 from src.data.ingestion import ingest_asset
 from src.data.store import Store
 from src.delivery.telegram import deliver
-from src.paper_trading.engine import PaperTradingEngine
 from src.paper_trading.shadow import (
     SignalToOpen,
     close_at,
@@ -26,13 +27,14 @@ from src.paper_trading.shadow import (
     paper_stats,
     resolve_due,
 )
+from src.paper_trading.state import portfolio_state_from_store
 from src.quant.features import InsufficientData, compute_features
-from src.quant.risk import CircuitBreaker, RiskDecision
+from src.quant.risk import CircuitBreaker, RiskDecision, RiskLimits
 from src.quant.signals import build_signal, rank_signals
 from src.reporting.daily_report import build_report
 from src.reporting.explain import explain_daily
 from src.schemas.enums import Signal
-from src.schemas.market import Candle
+from src.schemas.market import Candle, DataQualityReport
 from src.schemas.signal import SignalBatch, SignalContract
 
 log = logging.getLogger("daily_run")
@@ -46,7 +48,13 @@ def _adapter(live: bool) -> MarketDataAdapter:
     return BinanceAdapter()
 
 
-def run(*, live: bool = False, settings: Settings | None = None, out_dir: Path | None = None) -> dict:
+def run(
+    *,
+    live: bool = False,
+    settings: Settings | None = None,
+    out_dir: Path | None = None,
+    risk_limits: RiskLimits | None = None,
+) -> dict:
     settings = settings or Settings.from_env()
     out_dir = out_dir or (ROOT / "var" / "reports")
     now = datetime.now(UTC)
@@ -55,30 +63,56 @@ def run(*, live: bool = False, settings: Settings | None = None, out_dir: Path |
     store.init_schema()
 
     adapter = _adapter(live)
-    breaker = CircuitBreaker()
-    paper = PaperTradingEngine(cost_rate=settings.total_cost_rate)
-    state = paper.portfolio_state()
+    breaker = CircuitBreaker(
+        risk_limits or RiskLimits(expected_interval_hours=settings.expected_interval_hours)
+    )
 
     signals: list[SignalContract] = []
     decisions: dict[str, RiskDecision] = {}
     candles_by_asset: dict[str, list[Candle]] = {}
+    qualities: dict[str, DataQualityReport] = {}
+    live_prices: dict[str, float] = {}
+    entry_sources: dict[str, str] = {}
 
     for asset in settings.assets:
         result = ingest_asset(asset, adapter, settings=settings, store=store, now=now)
         candles_by_asset[asset] = result.candles
-        if len(result.candles) < settings.min_history_days:
-            log.warning("%s: histórico insuficiente (%s velas)", asset, len(result.candles))
+        qualities[asset] = result.quality
+        if not result.candles:
             continue
 
         try:
-            features = compute_features(result.candles, now=now)
+            quote = adapter.fetch_quote(asset)
+            live_prices[asset] = quote.close
+            entry_sources[asset] = "quote_at_run"
+        except (DataProviderError, httpx.HTTPError) as exc:
+            # Sin cotización viva se usa el último cierre conocido y se marca la
+            # limitación; el paper trade queda auditado, no se inventa un precio.
+            log.warning("%s: cotización viva no disponible (%s); uso último cierre", asset, exc)
+            live_prices[asset] = result.candles[-1].close
+            entry_sources[asset] = "last_close_fallback"
+
+    # Cerrar vencidos antes de reconstruir el estado de cartera: el equity y las
+    # pérdidas de hoy deben incluir los cierres de esta misma corrida.
+    resolved = resolve_due(store, candles_by_asset, now=now)
+    kill_switch = settings.kill_switch or store.control_flag("kill_switch")
+    state = portfolio_state_from_store(store, now=now, kill_switch=kill_switch)
+
+    for asset in settings.assets:
+        candles = candles_by_asset.get(asset, [])
+        if len(candles) < settings.min_history_days:
+            log.warning("%s: histórico insuficiente (%s velas)", asset, len(candles))
+            continue
+
+        try:
+            features = compute_features(candles, now=now)
         except InsufficientData as exc:
             log.warning("%s: %s", asset, exc)
             continue
 
         signal = build_signal(
             features,
-            result.quality,
+            qualities[asset],
             settings=settings,
             code_version="dev",
             correlation=state.exposure_by_asset_pct.get(asset, 0.0) / 100,
@@ -97,6 +131,20 @@ def run(*, live: bool = False, settings: Settings | None = None, out_dir: Path |
                     "invalidators": [*signal.invalidators, *decision.blocked_by][:6],
                 }
             )
+        elif decision.allowed and signal.is_actionable:
+            # El tamaño autorizado por el breaker es el que se ejecuta, no el
+            # tamaño que pidió el modelo de señal.
+            signal = signal.model_copy(
+                update={
+                    "risk": signal.risk.model_copy(
+                        update={"suggested_size_pct": decision.suggested_size_pct}
+                    )
+                }
+            )
+            state.exposure_by_asset_pct[asset] = (
+                state.exposure_by_asset_pct.get(asset, 0.0) + decision.suggested_size_pct
+            )
+            state.trades_today += 1
 
         signals.append(signal)
 
@@ -105,27 +153,28 @@ def run(*, live: bool = False, settings: Settings | None = None, out_dir: Path |
     for s in ranked:
         signal_ids[s.asset] = store.save_signal(s)
 
-    # Paper trading en sombra: primero cerrar lo vencido, luego abrir lo nuevo.
-    resolved = resolve_due(store, candles_by_asset, now=now)
-
     candidates: list[SignalToOpen] = []
     for s in ranked:
         if not s.is_actionable:
             continue
-        entry = close_at(candles_by_asset.get(s.asset, []), s.data_timestamp)
-        if entry is None:
+        frozen = close_at(candles_by_asset.get(s.asset, []), s.data_timestamp)
+        if frozen is None:
             log.warning("%s: sin cierre para congelar la entrada; no se abre paper trade", s.asset)
             continue
+        execution = live_prices.get(s.asset) or frozen
         candidates.append(
             SignalToOpen(
                 signal_id=signal_ids.get(s.asset, 0),
                 asset=s.asset,
                 horizon=s.horizon,
                 data_timestamp=s.data_timestamp,
-                entry_price=entry,
+                entry_price=execution,
                 size_pct=s.risk.suggested_size_pct,
                 cost_rate=s.costs.total_rate,
                 model_version=s.model_version,
+                signal_price=frozen,
+                entry_price_source=entry_sources.get(s.asset, "last_close_fallback"),
+                opened_at=now,
             )
         )
     opened = open_from_signals(store, candidates)
@@ -182,6 +231,7 @@ def run(*, live: bool = False, settings: Settings | None = None, out_dir: Path |
         "report": report,
         "report_path": report_path,
         "counts": batch.summarise(),
+        "decisions": decisions,
         "paper": {
             "opened": opened,
             "resolved": resolved,
