@@ -3,7 +3,7 @@
 # El código de Kronos NO viene de PyPI: scripts/setup_kronos.py clona el commit
 # fijado y descarga los pesos a .cache/kronos (ignorado por git).
 --extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.9.1+cpu
-einops==0.8.1
+torch==2.14.1+cpu
+einops==0.8.2
 huggingface_hub==0.33.1
-safetensors==0.6.2
+safetensors==0.8.0
