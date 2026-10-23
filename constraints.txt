@@ -1,0 +1,13 @@
+# Versiones exactas usadas por CI. Actualizar junto con pyproject.toml.
+# Instalación: pip install -e ".[dev]" -c constraints.txt
+pydantic==2.14.1
+numpy==2.4.6
+pandas==3.0.6
+httpx==0.28.1
+tenacity==9.2.1
+streamlit==1.66.1
+pillow==13.0.0
+pytest==9.1.1
+pytest-cov==7.1.0
+ruff==0.17.1
+mypy==2.4.0

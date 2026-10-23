@@ -41,6 +41,7 @@ class Settings:
     min_probability_net_positive: float = 0.55
     min_confidence: str = "medium"
     max_data_age_minutes: int = 20
+    expected_interval_hours: float = 24.0
     min_history_days: int = 60
 
     # Costos de fricción, en puntos básicos
@@ -52,6 +53,7 @@ class Settings:
     db_path: Path = DATA_DIR / "trading.db"
     log_level: str = "INFO"
     demo_mode: bool = True
+    kill_switch: bool = False
 
     # IA de explicación (opcional; nunca decide)
     llm_enabled: bool = False
@@ -83,6 +85,7 @@ class Settings:
             min_probability_net_positive=_float("TRADING_MIN_PROB_NET", 0.55),
             min_confidence=os.getenv("TRADING_MIN_CONFIDENCE", "medium").lower(),
             max_data_age_minutes=_int("TRADING_MAX_DATA_AGE_MIN", 20),
+            expected_interval_hours=_float("TRADING_INTERVAL_HOURS", 24.0),
             min_history_days=_int("TRADING_MIN_HISTORY_DAYS", 60),
             commission_bps=_float("TRADING_COMMISSION_BPS", 6.0),
             slippage_bps=_float("TRADING_SLIPPAGE_BPS", 4.0),
@@ -90,10 +93,11 @@ class Settings:
             db_path=Path(os.getenv("TRADING_DB_PATH", str(DATA_DIR / "trading.db"))),
             log_level=os.getenv("TRADING_LOG_LEVEL", "INFO").upper(),
             demo_mode=_bool("TRADING_DEMO_MODE", True),
+            kill_switch=_bool("TRADING_KILL_SWITCH", False),
             llm_enabled=_bool("TRADING_LLM_ENABLED", False),
             llm_model=os.getenv("TRADING_LLM_MODEL", "gpt-4o-mini"),
             llm_base_url=os.getenv("TRADING_LLM_BASE_URL", "https://api.openai.com/v1").rstrip("/"),
-            llm_api_key=os.getenv("TRADING_LLM_API_KEY") or os.getenv("OPENAI_API_KEY", ""),
+            llm_api_key=(os.getenv("TRADING_LLM_API_KEY") or os.getenv("OPENAI_API_KEY", "") or ""),
             llm_prompt_version=os.getenv("TRADING_LLM_PROMPT_VERSION", "explain-signal-v1"),
             llm_monthly_budget_usd=_float("TRADING_LLM_MONTHLY_BUDGET_USD", 1.0),
             llm_max_output_tokens=_int("TRADING_LLM_MAX_OUTPUT_TOKENS", 700),

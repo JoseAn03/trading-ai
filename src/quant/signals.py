@@ -1,10 +1,12 @@
-"""Motor de señal determinista (baseline v0).
+"""Motor de señal determinista (baseline v0.1, score heurístico).
 
 No hay LLM, ni red, ni aleatoriedad. La misma `FeatureSet` produce siempre la
 misma señal, lo que permite testearla y auditarla.
 
-El baseline es deliberadamente simple: sirve como referencia contra la que se
-medirán modelos posteriores en el backtesting.
+El score sale de un logit con pesos fijos a mano; **no es una probabilidad
+calibrada**. La regresión entrenada solo se evalúa en backtests. La UI debe
+etiquetarlo como score heurístico hasta que un modelo calibrado se conecte en la
+Fase 2.
 """
 
 from __future__ import annotations

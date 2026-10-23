@@ -463,7 +463,7 @@ def _signal_card(row: dict) -> str:
 
     detail = "".join(
         [
-            f'<div class="row"><span class="muted">Prob. neta</span><b>{_pct(p_net, 1)}</b></div>',
+            f'<div class="row"><span class="muted">Score heurístico</span><b>{_pct(p_net, 1)}</b></div>',
             f'<div class="row"><span class="muted">Ret. neto est.</span>'
             f'<b class="{("pos" if expected > 0 else "neg")}">{_pct(expected)}</b></div>',
             f'<div class="row"><span class="muted">Confianza</span><b>{_safe(row["confidence"])}</b></div>',
@@ -506,6 +506,11 @@ def _paper_panel(store: Store) -> str:
             _kpi("Abiertas", str(stats.open_trades)),
             _kpi("Acierto", f"{stats.win_rate * 100:.1f}%"),
             _kpi("Max DD", f"{stats.max_drawdown_pct:.2f}%"),
+            _kpi(
+                "Sesgo entrada",
+                f"{stats.avg_entry_delay_pct:+.2f}%",
+                "ejecución vs cierre de señal",
+            ),
         ]
     )
 
@@ -744,14 +749,12 @@ def export_static(*, store: Store, out_dir: Path, reports_dir: Path, now: dateti
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "reports").mkdir(parents=True, exist_ok=True)
 
-    latest_data = max(
-        (_ts(row.get("data_timestamp")) for row in signals if row.get("data_timestamp")),
-        default=None,
-    )
-    latest_signal = max(
-        (_ts(row.get("timestamp")) for row in signals if row.get("timestamp")),
-        default=None,
-    )
+    data_stamps = [
+        ts for row in signals if (ts := _ts(row.get("data_timestamp"))) is not None
+    ]
+    signal_stamps = [ts for row in signals if (ts := _ts(row.get("timestamp"))) is not None]
+    latest_data = max(data_stamps) if data_stamps else None
+    latest_signal = max(signal_stamps) if signal_stamps else None
     updated_at = latest_signal or stamp
     data_age = ""
     stale = False

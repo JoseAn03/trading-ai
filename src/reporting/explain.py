@@ -106,6 +106,7 @@ def build_payload(
             "total_return_pct": round(paper.total_return_pct, 3),
             "avg_net_return": round(paper.avg_net_return, 6),
             "max_drawdown_pct": round(paper.max_drawdown_pct, 3),
+            "avg_entry_delay_pct": round(paper.avg_entry_delay_pct, 3),
         },
         "constraints": [
             "Sin ejecucion de ordenes reales.",
@@ -148,7 +149,7 @@ def build_deterministic(payload: dict, *, generated_at: datetime) -> dict:
             "asset": s["asset"],
             "signal": s["signal"],
             "why": (
-                f"probabilidad neta {s['probability_net_positive_pct']:.1f}%, "
+                f"score heurístico {s['probability_net_positive_pct']:.1f}%, "
                 f"retorno neto esperado {s['expected_return_net_pct']:+.2f}%, "
                 f"tamaño sugerido {s['suggested_size_pct']:.2f}%"
             ),

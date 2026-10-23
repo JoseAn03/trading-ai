@@ -89,7 +89,15 @@ CREATE TABLE IF NOT EXISTS paper_trades (
     horizon_days  INTEGER NOT NULL DEFAULT 1,
     due_at        TEXT,
     cost_rate     REAL NOT NULL DEFAULT 0.002,
-    model_version TEXT NOT NULL DEFAULT 'unknown'
+    model_version TEXT NOT NULL DEFAULT 'unknown',
+    signal_price  REAL,
+    entry_price_source TEXT NOT NULL DEFAULT 'signal_close'
+);
+
+CREATE TABLE IF NOT EXISTS system_controls (
+    key        TEXT PRIMARY KEY,
+    value      TEXT NOT NULL,
+    updated_at TEXT NOT NULL
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS ux_paper_signal
@@ -161,6 +169,8 @@ class Store:
                 "due_at": "TEXT",
                 "cost_rate": "REAL NOT NULL DEFAULT 0.002",
                 "model_version": "TEXT NOT NULL DEFAULT 'unknown'",
+                "signal_price": "REAL",
+                "entry_price_source": "TEXT NOT NULL DEFAULT 'legacy'",
             }
             for name, ddl in additions.items():
                 if name not in columns:
@@ -246,6 +256,8 @@ class Store:
         due_at: datetime,
         cost_rate: float,
         model_version: str,
+        signal_price: float | None = None,
+        entry_price_source: str = "signal_close",
     ) -> int | None:
         """Abre una posición simulada. Devuelve None si ya existía (idempotente)."""
         try:
@@ -253,8 +265,9 @@ class Store:
                 cur = conn.execute(
                     """INSERT INTO paper_trades
                        (asset, signal_id, opened_at, entry_price, size_pct, status,
-                        horizon_days, due_at, cost_rate, model_version)
-                       VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?, ?)""",
+                        horizon_days, due_at, cost_rate, model_version, signal_price,
+                        entry_price_source)
+                       VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?)""",
                     (
                         asset,
                         signal_id,
@@ -265,6 +278,8 @@ class Store:
                         due_at.isoformat(),
                         cost_rate,
                         model_version,
+                        signal_price,
+                        entry_price_source,
                     ),
                 )
                 return int(cur.lastrowid or 0) or None
@@ -397,6 +412,27 @@ class Store:
                 "INSERT INTO audit_events (at, actor, action, detail) VALUES (?, ?, ?, ?)",
                 (datetime.now(UTC).isoformat(), actor, action, detail),
             )
+
+    def set_control_flag(self, key: str, enabled: bool) -> None:
+        """Bandera operativa persistente (por ejemplo kill_switch)."""
+        with self.connect() as conn:
+            conn.execute(
+                """INSERT INTO system_controls (key, value, updated_at)
+                   VALUES (?, ?, ?)
+                   ON CONFLICT(key) DO UPDATE SET
+                       value = excluded.value,
+                       updated_at = excluded.updated_at""",
+                (key, "true" if enabled else "false", datetime.now(UTC).isoformat()),
+            )
+
+    def control_flag(self, key: str) -> bool:
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT value FROM system_controls WHERE key = ?", (key,)
+            ).fetchone()
+        if row is None:
+            return False
+        return str(row["value"]).strip().lower() in {"1", "true", "yes", "on"}
 
     # ------------------------------ lectura ------------------------------
     def load_candles(self, asset: str, limit: int = 200, source: str | None = None) -> list[Candle]:

@@ -64,9 +64,27 @@ def test_non_actionable_signal_blocked() -> None:
 
 
 def test_stale_data_blocks() -> None:
-    breaker = CircuitBreaker(RiskLimits(max_data_age_minutes=5))
+    # Intervalo 0 conserva el significado original: solo cuentan los 5 min
+    # configurados, sin extensión por cadencia de vela.
+    breaker = CircuitBreaker(RiskLimits(max_data_age_minutes=5, expected_interval_hours=0))
     decision = breaker.evaluate(make_signal(age_minutes=30), PortfolioState())
     assert decision.allowed is False
+    assert any("antigüedad" in b for b in decision.blocked_by)
+
+
+def test_daily_candle_age_is_allowed() -> None:
+    # Una vela diaria cerrada hace 10 h es normal; 20 min no deben bloquearla.
+    breaker = CircuitBreaker()
+    decision = breaker.evaluate(make_signal(age_minutes=600), PortfolioState())
+    assert decision.allowed is True
+
+
+def test_really_stale_daily_candle_blocks() -> None:
+    # La tolerancia efectiva es 36 h (1.5 x 24 h); 37 h ya es dato viejo.
+    breaker = CircuitBreaker()
+    decision = breaker.evaluate(make_signal(age_minutes=37 * 60), PortfolioState())
+    assert decision.allowed is False
+    assert any("2160" in b for b in decision.blocked_by)
 
 
 def test_no_trades_left_today_blocks() -> None:

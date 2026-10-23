@@ -97,6 +97,35 @@ def test_open_and_resolve_freezes_entry_and_applies_cost(store: Store) -> None:
     assert stats.equity == pytest.approx(1 + 0.098 * 0.10)
 
 
+def test_execution_price_and_signal_price_are_recorded(store: Store) -> None:
+    opened_at = START + timedelta(hours=6)
+    candidate = _candidate(
+        entry_price=102.0,
+        signal_price=100.0,
+        entry_price_source="quote_at_run",
+        opened_at=opened_at,
+    )
+    assert len(open_from_signals(store, [candidate])) == 1
+
+    row = store.open_paper_trades()[0]
+    assert row["entry_price"] == pytest.approx(102.0)
+    assert row["signal_price"] == pytest.approx(100.0)
+    assert row["entry_price_source"] == "quote_at_run"
+    assert datetime.fromisoformat(row["opened_at"]) == opened_at
+    assert datetime.fromisoformat(row["due_at"]) == opened_at + timedelta(days=1)
+
+    closed = resolve_due(
+        store,
+        {"BTC": _history([100.0, 110.0, 120.0])},
+        now=START + timedelta(days=2),
+    )
+    assert len(closed) == 1
+    assert closed[0]["gross_return"] == pytest.approx(120.0 / 102.0 - 1.0)
+
+    stats = paper_stats(store)
+    assert stats.avg_entry_delay_pct == pytest.approx(2.0)
+
+
 def test_no_resolution_before_due_or_without_exit_candle(store: Store) -> None:
     open_from_signals(store, [_candidate()])
     assert resolve_due(store, {"BTC": _history([100.0])}, now=START + timedelta(hours=12)) == []
@@ -149,5 +178,14 @@ def test_init_schema_migrates_old_paper_trades(tmp_path) -> None:
 
     conn = sqlite3.connect(path)
     columns = {row[1] for row in conn.execute("PRAGMA table_info(paper_trades)")}
+    tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     conn.close()
-    assert {"horizon_days", "due_at", "cost_rate", "model_version"} <= columns
+    assert {
+        "horizon_days",
+        "due_at",
+        "cost_rate",
+        "model_version",
+        "signal_price",
+        "entry_price_source",
+    } <= columns
+    assert "system_controls" in tables

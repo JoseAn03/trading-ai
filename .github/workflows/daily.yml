@@ -1,5 +1,9 @@
 name: daily
 
+# El "día" operativo es UTC: las velas diarias de Binance cierran a las 00:00
+# UTC, que en Costa Rica (UTC-6) son las 18:00. La guardia usa la fecha UTC a
+# propósito, no la fecha local. Cambiar a America/Costa_Rica haría que el motor
+# corriera antes de que cierre la vela diaria.
 on:
   schedule:
     - cron: "15 * * * *"
@@ -11,37 +15,37 @@ on:
         default: false
 
 permissions:
-  contents: write
-  pages: write
-  id-token: write
+  contents: read
 
 concurrency:
   group: daily
   cancel-in-progress: false
 
 jobs:
-  update-and-publish:
+  compute:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      run_engine: ${{ steps.check.outputs.run_engine }}
     env:
       BINANCE_BASE_URL: https://data-api.binance.vision/api/v3
       TZ: UTC
+      FORCE: ${{ github.event.inputs.force || 'false' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.11"
           cache: pip
-          cache-dependency-path: pyproject.toml
+          cache-dependency-path: |
+            pyproject.toml
+            constraints.txt
 
       - name: Install
-        run: python -m pip install -e .
+        run: python -m pip install -e . -c constraints.txt
 
       - name: Check if daily run is needed
         id: check
@@ -66,13 +70,18 @@ jobs:
               except sqlite3.Error:
                   latest = ""
           needed = latest != today
-          print(f"today={today} latest_signal={latest or 'none'} needed={needed}")
+          force = os.getenv("FORCE", "false").strip().lower() == "true"
+          run_engine = needed or force
+          print(
+              f"today={today} latest_signal={latest or 'none'} "
+              f"needed={needed} force={force} run_engine={run_engine}"
+          )
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
-              handle.write(f"needed={'true' if needed else 'false'}\n")
+              handle.write(f"run_engine={'true' if run_engine else 'false'}\n")
           PY
 
       - name: Check market data endpoint
-        if: steps.check.outputs.needed == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.force == 'true')
+        if: steps.check.outputs.run_engine == 'true'
         run: |
           python - <<'PY'
           import os
@@ -90,13 +99,15 @@ jobs:
           PY
 
       - name: Run daily engine
-        if: steps.check.outputs.needed == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.force == 'true')
+        if: steps.check.outputs.run_engine == 'true'
+        env:
+          TRADING_KILL_SWITCH: ${{ vars.TRADING_KILL_SWITCH || 'false' }}
         run: |
           mkdir -p var/reports
           python -m jobs.daily_run --live
 
       - name: Snapshot SQLite
-        if: steps.check.outputs.needed == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.force == 'true')
+        if: steps.check.outputs.run_engine == 'true'
         run: |
           python - <<'PY'
           import os
@@ -128,10 +139,57 @@ jobs:
           PY
 
       - name: Export static PWA
+        if: steps.check.outputs.run_engine == 'true'
         run: python -m jobs.export_static --out dist
 
+      - name: Upload PWA artifact
+        if: steps.check.outputs.run_engine == 'true'
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: pwa-dist
+          path: dist
+          retention-days: 1
+
+      - name: Upload state artifact
+        if: steps.check.outputs.run_engine == 'true'
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: trading-state
+          path: |
+            var/trading.db
+            var/reports
+          retention-days: 1
+
+  publish:
+    needs: compute
+    if: needs.compute.outputs.run_engine == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+
+      - name: Download state
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: trading-state
+
+      - name: Download PWA
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: pwa-dist
+          path: dist
+
       - name: Persist state
-        if: steps.check.outputs.needed == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.force == 'true')
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -144,15 +202,15 @@ jobs:
           fi
 
       - name: Configure Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
         with:
           enablement: true
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4.0.0
         with:
           path: dist
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

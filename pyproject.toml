@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "trading-ai"
 version = "0.1.0"
 description = "Plataforma personal de señales probabilísticas para cripto (apoyo a decisiones)"
+license = {text = "MIT"}
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

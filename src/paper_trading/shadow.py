@@ -1,8 +1,10 @@
 """Paper trading persistente (fase 5), en modo sombra y sin capital real.
 
 Reglas:
-- La señal se congela **antes** de conocer el resultado: entrada al cierre de la
-  vela con la que se calculó la señal (`data_timestamp`).
+- El precio de la señal (`signal_price`) se congela al cierre de la vela con la
+  que se calculó. La operación paper se ejecuta al precio vigente al momento de
+  la corrida (`entry_price`), que puede ser horas posterior; ambos se guardan
+  para medir el sesgo de entrada.
 - El resultado se resuelve con el primer cierre en o después de `due_at`; nunca
   se usa una vela posterior a `now`.
 - Cada operación es idempotente por `signal_id` y solo puede haber una posición
@@ -32,6 +34,9 @@ class SignalToOpen:
     size_pct: float
     cost_rate: float
     model_version: str
+    signal_price: float | None = None
+    entry_price_source: str = "signal_close"
+    opened_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -43,6 +48,7 @@ class PaperStats:
     total_return_pct: float
     avg_net_return: float
     max_drawdown_pct: float
+    avg_entry_delay_pct: float = 0.0
 
 
 def horizon_to_days(horizon: str) -> int:
@@ -73,17 +79,24 @@ def open_from_signals(store: Store, candidates: list[SignalToOpen]) -> list[int]
         if candidate.signal_id <= 0 or candidate.entry_price <= 0 or candidate.size_pct <= 0:
             continue
         days = horizon_to_days(candidate.horizon)
-        due_at = candidate.data_timestamp + timedelta(days=days)
+        opened_at = candidate.opened_at or candidate.data_timestamp
+        due_at = opened_at + timedelta(days=days)
+        signal_price = (
+            candidate.signal_price if candidate.signal_price and candidate.signal_price > 0
+            else candidate.entry_price
+        )
         trade_id = store.save_paper_trade(
             asset=candidate.asset,
             signal_id=candidate.signal_id,
-            opened_at=candidate.data_timestamp,
+            opened_at=opened_at,
             entry_price=candidate.entry_price,
             size_pct=candidate.size_pct,
             horizon_days=days,
             due_at=due_at,
             cost_rate=candidate.cost_rate,
             model_version=candidate.model_version,
+            signal_price=signal_price,
+            entry_price_source=candidate.entry_price_source,
         )
         if trade_id is None:
             continue
@@ -92,6 +105,7 @@ def open_from_signals(store: Store, candidates: list[SignalToOpen]) -> list[int]
             "paper",
             "open",
             f"trade={trade_id} asset={candidate.asset} entry={candidate.entry_price:.2f} "
+            f"signal_price={signal_price:.2f} source={candidate.entry_price_source} "
             f"due={due_at.isoformat()} signal={candidate.signal_id}",
         )
     return opened
@@ -179,6 +193,7 @@ def paper_stats(store: Store) -> PaperStats:
     max_drawdown = 0.0
     wins = 0
     net_returns: list[float] = []
+    entry_delays: list[float] = []
 
     for row in rows:
         net_return = float(row["net_return"] or 0.0)
@@ -189,6 +204,9 @@ def paper_stats(store: Store) -> PaperStats:
         if net_return > 0:
             wins += 1
         net_returns.append(net_return)
+        signal_price = float(row["signal_price"] or 0.0)
+        if signal_price > 0:
+            entry_delays.append((float(row["entry_price"]) / signal_price - 1) * 100)
 
     return PaperStats(
         trades=len(rows),
@@ -198,4 +216,5 @@ def paper_stats(store: Store) -> PaperStats:
         total_return_pct=(equity - 1) * 100,
         avg_net_return=mean(net_returns) if net_returns else 0.0,
         max_drawdown_pct=max_drawdown * 100,
+        avg_entry_delay_pct=mean(entry_delays) if entry_delays else 0.0,
     )
