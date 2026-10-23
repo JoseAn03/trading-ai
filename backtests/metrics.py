@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from datetime import datetime
+from statistics import mean, stdev
 
 
 @dataclass(frozen=True)
@@ -29,6 +31,7 @@ class StrategyStats:
     profit_factor: float
     max_drawdown: float
     final_equity: float
+    sharpe: float = 0.0
 
 
 def calibration_table(
@@ -82,6 +85,50 @@ def log_loss(probs: list[float], labels: list[int]) -> float:
     ) / len(labels)
 
 
+def sharpe_ratio(returns: list[float], *, periods_per_year: float = 365.0) -> float:
+    """Sharpe sin tasa libre de riesgo y con desvío muestral.
+
+    `returns` son los retornos netos de las operaciones seleccionadas. Para
+    horizontes de h días se pasa `periods_per_year=365/h`; así no se anualiza
+    como si hubiera una operación diaria cuando no la hay.
+    """
+    if len(returns) < 2:
+        return 0.0
+    dispersion = stdev(returns)
+    if dispersion <= 0:
+        return 0.0
+    return mean(returns) / dispersion * math.sqrt(periods_per_year)
+
+
+def monthly_consistency(
+    dated_returns: list[tuple[datetime, float]],
+) -> dict[str, float]:
+    """Retornos mensuales compuestos y fracción de meses positivos.
+
+    `dated_returns` usa la fecha de cierre de cada operación. Es una medida de
+    consistencia, no de significancia: con pocos meses no prueba nada.
+    """
+    buckets: dict[str, list[float]] = {}
+    for stamp, value in dated_returns:
+        buckets.setdefault(f"{stamp.year:04d}-{stamp.month:02d}", []).append(value)
+
+    monthly: dict[str, float] = {}
+    for key, values in sorted(buckets.items()):
+        equity = 1.0
+        for value in values:
+            equity *= 1 + value
+        monthly[key] = equity - 1.0
+
+    positive = sum(1 for value in monthly.values() if value > 0)
+    return {
+        "months": float(len(monthly)),
+        "positive_months": float(positive),
+        "positive_ratio": positive / len(monthly) if monthly else 0.0,
+        "worst_month": min(monthly.values()) if monthly else 0.0,
+        "best_month": max(monthly.values()) if monthly else 0.0,
+    }
+
+
 def strategy_stats(
     probs: list[float],
     forward_returns: list[float],
@@ -89,6 +136,7 @@ def strategy_stats(
     threshold: float = 0.55,
     cost_rate: float = 0.002,
     starting_equity: float = 1.0,
+    periods_per_year: float = 365.0,
 ) -> StrategyStats:
     """Opera largo solo cuando p >= threshold; aplica costo ida y vuelta por trade."""
     if len(probs) != len(forward_returns):
@@ -102,6 +150,7 @@ def strategy_stats(
     gross_win = 0.0
     gross_loss = 0.0
     total_net = 0.0
+    net_returns: list[float] = []
 
     for p, r in zip(probs, forward_returns, strict=True):
         if p < threshold:
@@ -113,6 +162,7 @@ def strategy_stats(
 
         trades += 1
         total_net += net
+        net_returns.append(net)
         if net > 0:
             wins += 1
             gross_win += net
@@ -127,6 +177,7 @@ def strategy_stats(
         profit_factor=gross_win / gross_loss if gross_loss > 0 else math.inf,
         max_drawdown=max_dd,
         final_equity=equity,
+        sharpe=sharpe_ratio(net_returns, periods_per_year=periods_per_year),
     )
 
 

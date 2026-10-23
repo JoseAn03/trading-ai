@@ -15,6 +15,7 @@ from backtests.walk_forward import (
     walk_forward,
     walk_forward_predictions,
 )
+from src.quant.features import FEATURE_SETS
 from tests.conftest import make_candles
 
 
@@ -115,6 +116,16 @@ def test_feature_set_v02_uses_long_history_and_columns() -> None:
         "vol_ratio",
         "drawdown_60d",
     }
+
+
+def test_feature_set_v03_columns_are_trailing_and_finite() -> None:
+    assert build_samples(make_candles(150), feature_set="v0.3") == []
+    samples = build_samples(make_candles(300, daily_return=0.002, volatility=0.01), feature_set="v0.3")
+    assert samples
+    assert len(samples[0].features) == 12
+    assert set(samples[0].features) == set(FEATURE_SETS["v0.3"])
+    assert all(isinstance(value, float) for value in samples[0].features.values())
+    assert 0 <= samples[0].features["rsi_14"] <= 100
 
 
 def test_unknown_feature_set_rejected() -> None:

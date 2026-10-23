@@ -13,6 +13,8 @@ from backtests.metrics import (
     equity_curve,
     expected_calibration_error,
     log_loss,
+    monthly_consistency,
+    sharpe_ratio,
     strategy_stats,
 )
 
@@ -84,3 +86,32 @@ def test_equity_curve_compounds_only_above_threshold() -> None:
 
 def test_equity_curve_without_trades_is_flat() -> None:
     assert equity_curve([0.1, 0.2], [0.5, -0.5], threshold=0.55) == [1.0]
+
+
+def test_sharpe_is_zero_without_dispersion_or_sample() -> None:
+    assert sharpe_ratio([0.01, 0.01, 0.01]) == 0.0
+    assert sharpe_ratio([0.01]) == 0.0
+
+
+def test_sharpe_positive_for_positive_mean() -> None:
+    assert sharpe_ratio([0.01, 0.02, 0.015, 0.005], periods_per_year=252) > 0
+
+
+def test_strategy_stats_reports_sharpe() -> None:
+    stats = strategy_stats([0.9, 0.9, 0.9], [0.02, 0.01, 0.03], threshold=0.55)
+    assert stats.sharpe > 0
+
+
+def test_monthly_consistency_compounds_by_month() -> None:
+    from datetime import UTC, datetime
+
+    values = [
+        (datetime(2026, 1, 5, tzinfo=UTC), 0.10),
+        (datetime(2026, 1, 20, tzinfo=UTC), -0.10),
+        (datetime(2026, 2, 3, tzinfo=UTC), 0.05),
+    ]
+    result = monthly_consistency(values)
+    assert result["months"] == 2
+    assert result["positive_months"] == 1
+    assert result["positive_ratio"] == pytest.approx(0.5)
+    assert result["worst_month"] == pytest.approx(-0.01)

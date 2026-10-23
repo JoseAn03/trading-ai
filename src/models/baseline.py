@@ -50,7 +50,7 @@ class LogisticBaseline:
         self.bias = 0.0
 
         for _ in range(self.epochs):
-            z = Xn @ self.weights + self.bias
+            z = np.clip(Xn @ self.weights + self.bias, -500.0, 500.0)
             p = 1.0 / (1.0 + np.exp(-z))
             error = p - y
             grad_w = (Xn.T @ error) / n + self.l2 * self.weights
@@ -70,6 +70,7 @@ class LogisticBaseline:
         X = self._matrix(rows)
         Xn = (X - self.mu) / self.sigma
         z = Xn @ self.weights + self.bias
+        z = np.clip(z, -500.0, 500.0)
         return 1.0 / (1.0 + np.exp(-z))
 
     def describe(self) -> dict[str, float]:

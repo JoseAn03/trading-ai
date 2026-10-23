@@ -35,10 +35,26 @@ FEATURE_SETS: dict[str, tuple[str, ...]] = {
         "vol_ratio",
         "drawdown_60d",
     ),
+    # v0.3 = régimen + reversión/estiraje de corto plazo. Todo trailing; no usa
+    # el retorno futuro. Se declara antes de mirar el holdout.
+    "v0.3": (
+        "trend",
+        "momentum_10d",
+        "distance_to_sma",
+        "vol_ratio",
+        "drawdown_60d",
+        "rsi_14",
+        "ret_20d",
+        "range_20d",
+        "close_location_20d",
+        "vol_5d",
+        "vol_ratio_5_20",
+        "volume_trend",
+    ),
 }
 
 # Historia mínima para que cada set tenga sentido (200 días + 1 para el retorno).
-REQUIRED_HISTORY: dict[str, int] = {"v0.1": 31, "v0.2": 201}
+REQUIRED_HISTORY: dict[str, int] = {"v0.1": 31, "v0.2": 201, "v0.3": 201}
 
 
 @dataclass(frozen=True)
@@ -61,6 +77,13 @@ class FeatureSet:
     trend_long: float
     distance_to_sma200: float
     drawdown_60d: float
+    rsi_14: float
+    ret_20d: float
+    range_20d: float
+    close_location_20d: float
+    vol_5d: float
+    vol_ratio_5_20: float
+    volume_trend: float
     data_age_minutes: float
     observations: int
 
@@ -84,6 +107,13 @@ class FeatureSet:
             "trend_long": self.trend_long,
             "distance_to_sma200": self.distance_to_sma200,
             "drawdown_60d": self.drawdown_60d,
+            "rsi_14": self.rsi_14,
+            "ret_20d": self.ret_20d,
+            "range_20d": self.range_20d,
+            "close_location_20d": self.close_location_20d,
+            "vol_5d": self.vol_5d,
+            "vol_ratio_5_20": self.vol_ratio_5_20,
+            "volume_trend": self.volume_trend,
             "data_age_minutes": self.data_age_minutes,
             "observations": self.observations,
         }
@@ -99,6 +129,21 @@ def _returns(closes: list[float]) -> list[float]:
 
 def _safe_div(a: float, b: float, default: float = 1.0) -> float:
     return a / b if b else default
+
+
+def _rsi(closes: list[float], period: int = 14) -> float:
+    """RSI simple sobre los últimos `period` deltas, sin mirar el futuro."""
+    if len(closes) < period + 1:
+        return 50.0
+    deltas = [closes[i] - closes[i - 1] for i in range(len(closes) - period, len(closes))]
+    gains = [max(delta, 0.0) for delta in deltas]
+    losses = [max(-delta, 0.0) for delta in deltas]
+    avg_gain = mean(gains)
+    avg_loss = mean(losses)
+    if avg_loss == 0:
+        return 100.0 if avg_gain > 0 else 50.0
+    relative_strength = avg_gain / avg_loss
+    return 100.0 - 100.0 / (1.0 + relative_strength)
 
 
 def compute_features(
@@ -134,6 +179,9 @@ def compute_features(
     window = rets[-vol_window:] if len(rets) >= vol_window else rets
     vol = pstdev(window) if len(window) > 1 else 0.0
 
+    window_short = rets[-5:] if len(rets) >= 5 else rets
+    vol_5 = pstdev(window_short) if len(window_short) > 1 else 0.0
+
     window_long = rets[-vol_long_window:] if len(rets) >= vol_long_window else rets
     vol_60 = pstdev(window_long) if len(window_long) > 1 else 0.0
 
@@ -151,6 +199,16 @@ def compute_features(
 
     peak_60 = max(closes[-vol_long_window:])
     drawdown_60d = closes[-1] / peak_60 - 1.0 if peak_60 > 0 else 0.0
+
+    recent = ordered[-20:]
+    high_20 = max(c.high for c in recent)
+    low_20 = min(c.low for c in recent)
+    range_20d = mean((c.high - c.low) / c.close for c in recent if c.close > 0)
+    close_location_20d = (
+        (closes[-1] - low_20) / (high_20 - low_20) if high_20 > low_20 else 0.5
+    )
+    ret_20d = closes[-1] / closes[-21] - 1.0 if len(closes) > 21 else ret_5d
+    volume_trend = _safe_div(mean(volumes[-5:]), mean(volumes[-20:]), 1.0) - 1.0
 
     age_minutes = max(0.0, (now - last.ts).total_seconds() / 60.0)
 
@@ -173,6 +231,13 @@ def compute_features(
         trend_long=_safe_div(sma_medium, sma_long, 1.0) - 1.0,
         distance_to_sma200=closes[-1] / sma_long - 1.0 if sma_long > 0 else 0.0,
         drawdown_60d=drawdown_60d,
+        rsi_14=_rsi(closes),
+        ret_20d=ret_20d,
+        range_20d=range_20d,
+        close_location_20d=close_location_20d,
+        vol_5d=vol_5,
+        vol_ratio_5_20=_safe_div(vol_5, vol, 1.0) if vol > 0 else 1.0,
+        volume_trend=volume_trend,
         data_age_minutes=age_minutes,
         observations=len(ordered),
     )
