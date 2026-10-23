@@ -1,0 +1,175 @@
+{
+  "generated_at": "2026-10-22T09:17:25.861745+00:00",
+  "source": "live",
+  "days": 1500,
+  "assets": [
+    "BTC",
+    "ETH"
+  ],
+  "horizon": 1,
+  "threshold": 0.55,
+  "cost_rate": 0.002,
+  "min_history": 201,
+  "sets": [
+    {
+      "feature_set": "v0.1",
+      "features": [
+        "trend",
+        "momentum_10d",
+        "distance_to_sma",
+        "volume_relative",
+        "vol_20d"
+      ],
+      "pooled": {
+        "samples": 1800.0,
+        "windows": 30.0,
+        "positive_windows": 0.5333333333333333,
+        "log_loss": 0.699535909357547,
+        "log_loss_baseline": 0.6931471805599135,
+        "brier": 0.2529358210067278,
+        "accuracy": 0.5038888888888889,
+        "ece": 0.031243790538609484,
+        "mean_prob": 0.5019744546511491,
+        "base_rate": 0.5038888888888889,
+        "trades": 226.0,
+        "coverage": 0.12555555555555556,
+        "net_return": 0.060357986990755785,
+        "avg_net_per_trade": 0.0006596287223550186,
+        "win_rate": 0.504424778761062,
+        "profit_factor": 1.0668271635258009,
+        "max_drawdown": 0.22378467544461328,
+        "buy_and_hold": -0.0034836022520876586
+      },
+      "per_asset": {
+        "BTC": {
+          "samples": 900.0,
+          "windows": 15.0,
+          "positive_windows": 0.6,
+          "log_loss": 0.6965306580798483,
+          "log_loss_baseline": 0.6931471805599368,
+          "brier": 0.2516325421700997,
+          "accuracy": 0.5088888888888888,
+          "ece": 0.02547604681486772,
+          "mean_prob": 0.5119927053267516,
+          "base_rate": 0.5011111111111111,
+          "trades": 163.0,
+          "coverage": 0.1811111111111111,
+          "net_return": 0.005143986308931092,
+          "avg_net_per_trade": 0.00036071946239622966,
+          "win_rate": 0.5153374233128835,
+          "profit_factor": 1.0390369578939203,
+          "max_drawdown": 0.22378467544461328,
+          "buy_and_hold": 0.24114020547785397
+        },
+        "ETH": {
+          "samples": 900.0,
+          "windows": 15.0,
+          "positive_windows": 0.4666666666666667,
+          "log_loss": 0.702541160635246,
+          "log_loss_baseline": 0.6931471805599368,
+          "brier": 0.2542390998433557,
+          "accuracy": 0.4988888888888889,
+          "ece": 0.0370115342623519,
+          "mean_prob": 0.49195620397554723,
+          "base_rate": 0.5066666666666667,
+          "trades": 63.0,
+          "coverage": 0.07,
+          "net_return": 0.054931434136695545,
+          "avg_net_per_trade": 0.0014329971251055365,
+          "win_rate": 0.47619047619047616,
+          "profit_factor": 1.1245954009620112,
+          "max_drawdown": 0.20530892465809225,
+          "buy_and_hold": -0.19709603044868074
+        }
+      },
+      "gates": {
+        "beats_baseline": false,
+        "calibrated": true,
+        "profitable": true,
+        "robust": false
+      }
+    },
+    {
+      "feature_set": "v0.2",
+      "features": [
+        "trend",
+        "momentum_10d",
+        "distance_to_sma",
+        "volume_relative",
+        "vol_20d",
+        "trend_long",
+        "distance_to_sma200",
+        "vol_ratio",
+        "drawdown_60d"
+      ],
+      "pooled": {
+        "samples": 1800.0,
+        "windows": 30.0,
+        "positive_windows": 0.36666666666666664,
+        "log_loss": 0.7060616633782021,
+        "log_loss_baseline": 0.6931471805599135,
+        "brier": 0.25600885478278235,
+        "accuracy": 0.4988888888888889,
+        "ece": 0.051096743224661796,
+        "mean_prob": 0.5136329348629476,
+        "base_rate": 0.5038888888888889,
+        "trades": 483.0,
+        "coverage": 0.2683333333333333,
+        "net_return": -0.6569106025905753,
+        "avg_net_per_trade": -0.0016860424488473144,
+        "win_rate": 0.4658385093167702,
+        "profit_factor": 0.8644854492108394,
+        "max_drawdown": 0.8050611749094809,
+        "buy_and_hold": -0.0034836022520876586
+      },
+      "per_asset": {
+        "BTC": {
+          "samples": 900.0,
+          "windows": 15.0,
+          "positive_windows": 0.4666666666666667,
+          "log_loss": 0.7027726128677596,
+          "log_loss_baseline": 0.6931471805599368,
+          "brier": 0.2546529929898777,
+          "accuracy": 0.49666666666666665,
+          "ece": 0.051853494687168225,
+          "mean_prob": 0.5209102589037317,
+          "base_rate": 0.5011111111111111,
+          "trades": 261.0,
+          "coverage": 0.29,
+          "net_return": -0.36929685178608207,
+          "avg_net_per_trade": -0.0013221045796637683,
+          "win_rate": 0.47509578544061304,
+          "profit_factor": 0.8830523526556636,
+          "max_drawdown": 0.5992165840529113,
+          "buy_and_hold": 0.24114020547785397
+        },
+        "ETH": {
+          "samples": 900.0,
+          "windows": 15.0,
+          "positive_windows": 0.26666666666666666,
+          "log_loss": 0.7093507138886425,
+          "log_loss_baseline": 0.6931471805599368,
+          "brier": 0.25736471657568644,
+          "accuracy": 0.5011111111111111,
+          "ece": 0.050339991762155305,
+          "mean_prob": 0.5063556108221634,
+          "base_rate": 0.5066666666666667,
+          "trades": 222.0,
+          "coverage": 0.24666666666666667,
+          "net_return": -0.4560207945988276,
+          "avg_net_per_trade": -0.002113915349103646,
+          "win_rate": 0.45495495495495497,
+          "profit_factor": 0.8465748415662985,
+          "max_drawdown": 0.528526929494068,
+          "buy_and_hold": -0.19709603044868074
+        }
+      },
+      "gates": {
+        "beats_baseline": false,
+        "calibrated": false,
+        "profitable": false,
+        "robust": false
+      }
+    }
+  ]
+}
