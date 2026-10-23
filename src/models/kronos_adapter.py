@@ -3,8 +3,9 @@
 Kronos es un modelo fundacional de series K-line. Este módulo **no entrena**
 nada: carga los pesos públicos en la revisión fijada, corta el contexto a las
 últimas ``lookback`` velas cerradas y muestrea ``sample_count`` trayectorias.
-La probabilidad de subida se estima con esas trayectorias y entra a las mismas
-reglas de costos, breakers y paper trading que el resto del sistema.
+La probabilidad de subida se estima con esas trayectorias. El experimento la
+evalúa con las mismas ventanas, costos y gate que el baseline; si se integrara
+al paper, usaría los mismos breakers y el mismo kill switch.
 
 Pines
 -----

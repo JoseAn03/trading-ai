@@ -256,6 +256,11 @@ fecha, así que toma valores ±1 o queda indefinido. Se reporta como diagnóstic
 no como prueba de significancia. La evidencia principal es log loss, retorno
 neto después de costos, drawdown y consistencia temporal.
 
+Alcance de ejecución: el backtest usa la misma evaluación de costos y gate que
+Fase 2. Los breakers y el kill switch pertenecen a la ejecución paper y no se
+simulan en el backtest, igual que en el baseline; como Kronos no se integra, no
+hay una ruta de ejecución nueva ni cambios en esos controles.
+
 
 ### Coste computacional
 
