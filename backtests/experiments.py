@@ -118,17 +118,61 @@ def _strategy_diagnostics(
     monthly = monthly_consistency(
         [(p.ts, p.next_return - cost_rate) for p in traded]
     )
+    signal_hits = sum(1 for p in traded if p.next_return > 0)
     return {
         "sharpe": stats.sharpe,
         "max_drawdown": stats.max_drawdown,
         "profit_factor": stats.profit_factor,
         "avg_net_per_trade": stats.avg_net_per_trade,
         "trades": float(stats.trades),
+        "win_rate": stats.win_rate,
+        "signal_hit_rate": signal_hits / len(traded) if traded else 0.0,
         "positive_months": monthly["positive_ratio"],
         "months": monthly["months"],
         "worst_month": monthly["worst_month"],
         "best_month": monthly["best_month"],
     }
+
+
+def _rankdata(values: list[float]) -> list[float]:
+    """Rangos con empates promediados, sin depender de scipy."""
+    n = len(values)
+    order = sorted(range(n), key=lambda i: values[i])
+    ranks = [0.0] * n
+    position = 0
+    while position < n:
+        end = position
+        while end + 1 < n and values[order[end + 1]] == values[order[position]]:
+            end += 1
+        average = (position + end) / 2.0 + 1.0
+        for index in range(position, end + 1):
+            ranks[order[index]] = average
+        position = end + 1
+    return ranks
+
+
+def rank_ic(predictions: list[Prediction]) -> float:
+    """RankIC medio por fecha (Spearman entre prob y retorno futuro).
+
+    Con solo dos activos por fecha el valor es ±1 o indefinido; se reporta como
+    diagnóstico, no como prueba de significancia.
+    """
+    grouped: dict[Any, list[Prediction]] = {}
+    for prediction in predictions:
+        grouped.setdefault(prediction.ts, []).append(prediction)
+    values: list[float] = []
+    for group in grouped.values():
+        if len(group) < 2:
+            continue
+        probs = _rankdata([p.prob for p in group])
+        returns = _rankdata([p.next_return for p in group])
+        mean_p, mean_r = mean(probs), mean(returns)
+        covariance = sum((p - mean_p) * (r - mean_r) for p, r in zip(probs, returns, strict=True))
+        variance_p = sum((p - mean_p) ** 2 for p in probs)
+        variance_r = sum((r - mean_r) ** 2 for r in returns)
+        if variance_p > 0 and variance_r > 0:
+            values.append(covariance / math.sqrt(variance_p * variance_r))
+    return mean(values) if values else math.nan
 
 
 def evaluate_predictions(
@@ -142,6 +186,7 @@ def evaluate_predictions(
             predictions, threshold=threshold, cost_rate=cost_rate, horizon=horizon
         )
     )
+    metrics["rank_ic"] = rank_ic(predictions)
     return metrics
 
 

@@ -13,7 +13,7 @@ Plataforma personal de **apoyo a decisiones** para cripto. Calcula un **score he
 | 1. Esqueleto y panel | ✅ Streamlit + Docker + CI |
 | 2. Ingesta y calidad de datos | ✅ Binance (OHLCV real) + CoinGecko opcional + validación + SQLite |
 | 3. Motor cuantitativo mínimo | ✅ features + señal determinista + circuit breakers |
-| 4. Backtesting | ✅ walk-forward real, calibración (ECE) y gate de robustez; Fase 2 (2026-10-23): 14 candidatos, **sin promoción** (`docs/EXPERIMENTS.md`) |
+| 4. Backtesting | ✅ walk-forward real, calibración (ECE) y gate de robustez; Fase 2 + KRONOS-01 (2026-10-23): 14 candidatos y zero-shot, **sin promoción** (`docs/EXPERIMENTS.md`) |
 | 5. Paper trading | ✅ persistente en sombra: congela la entrada, resuelve al vencer y se ve en el panel |
 | 6. IA de explicación | ✅ determinista + LLM validado con guardia de cifras y fallback; entrega Telegram opcional |
 | 7. Operación 24/7 + agente | ⛔ no empezado (a propósito) |
@@ -140,6 +140,25 @@ python -m backtests.run_backtest --source live --days 1000 --assets BTC,ETH
 streamlit run app/streamlit_app.py
 ```
 
+### Kronos zero-shot (experimento opcional, CPU)
+
+Kronos **no** forma parte del paper trading ni de la corrida diaria. Es un
+experimento de la Fase 2 para comprobar si un modelo fundacional preentrenado
+aporta ventaja zero-shot con las mismas velas, folds y costos. Requiere pesos
+aparte (no se commitean) y deja resultados en `var/reports/`:
+
+```powershell
+pip install -r requirements-kronos.txt
+python scripts/setup_kronos.py --model small
+python -m backtests.kronos_experiment dev `
+  --source cache --days 1620 --assets BTC,ETH `
+  --model small --lookback 128 --sample-count 30 --threads 8
+```
+
+El holdout solo se ejecuta una vez y el comando exige `--confirm-holdout`; el
+resultado y el veredicto están en `docs/EXPERIMENTS.md`. No se promociona si no
+pasa el gate pre-registrado.
+
 Salidas en `var/reports/`: reporte diario (`.md`/`.json`), backtest (`.md`/`.json`)
 y predicciones auditables (`.csv`). Base en `var/trading.db`.
 
@@ -251,6 +270,7 @@ python -m backtests.experiments dev --source cache --days 1500 --assets BTC,ETH
 - **Barrido de horizontes 1–7 días: también sin ventaja.** El deterioro es monótono; no era un problema de horizonte.
 - **A/B de features de régimen (v0.2): peor que v0.1** en log loss, calibración y retorno. Ver `docs/BACKTEST-RESULTS.md`.
 - **Fase 2 (2026-10-23): 14 candidatos pre-registrados, ninguno pasa el gate.** El mejor Sharpe de desarrollo (`logit_v03_h1_t60`, 2.00) falló en el holdout único: Sharpe −0.69, retorno −7.35 % y 0/2 activos positivos. El paper se queda con la configuración actual; plan en `docs/PAPER-EVALUATION.md` y detalle en `docs/EXPERIMENTS.md`.
+- **KRONOS-01 (2026-10-23): zero-shot `Kronos-small` tampoco pasa.** Log loss 0.8069 en desarrollo y 0.7936 en holdout (baseline 0.6931), ECE 0.17/0.15, retorno neto −64 %/−10.6 % y 0/2 activos. No se integra, no se toca el paper y no se propone fine-tuning; el adaptador y los tests quedan como evidencia reproducible en `docs/EXPERIMENTS.md`.
 - **GitHub Pages es público y sin login.** Cualquiera con la URL puede leer el panel.
 - **GitHub no disparó el `schedule` en las pruebas iniciales.** El workflow quedó activo; el botón **Actualizar** y el comando manual funcionan. Checklist de Settings en `docs/OPERATIONS.md`. Si el cron se activa, se reintenta cada hora y el sitio avisa si el dato supera la tolerancia (36 h en velas diarias).
 - **La PWA no es una app nativa:** es un sitio instalable; necesita internet para actualizarse.
@@ -258,7 +278,7 @@ python -m backtests.experiments dev --source cache --days 1500 --assets BTC,ETH
 ## Próximos pasos
 
 1. Mantener el **paper trading en sombra** acumulando historial prospectivo con la configuración actual; no se promociona mientras no haya edge. Plan: ≥30 operaciones cerradas o ≥12 semanas, sin cambiar parámetros (`docs/PAPER-EVALUATION.md`).
-2. Si se sigue investigando, cambiar de **datos** (funding, open interest, on-chain), no de features de OHLCV; el holdout de Fase 2 ya se consumió y no se reutiliza.
+2. Si se sigue investigando, cambiar de **datos** (funding, open interest, on-chain), no de features de OHLCV; los holdouts de Fase 2 y KRONOS-01 ya se consumieron y no se reutilizan.
 3. Revisar el historial de **explicaciones y su costo**; ajustar el prompt no puede cambiar el cálculo.
 4. Operación 24/7 (fase 7) solo con el historial y los límites revisados.
 5. Revisar que el workflow diario siga verde y que el sitio muestre datos frescos.
