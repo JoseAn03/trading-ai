@@ -149,3 +149,34 @@ honestas, en orden de esfuerzo:
    y sin promover el modelo actual.
 
 **Reporte completo:** `var/reports/comparacion-features-2026-10-22.md`
+
+---
+
+## 2026-10-23 — Fase 2: 14 candidatos y holdout único (sin promoción)
+
+**Pregunta:** ¿alguna combinación de features, umbral, horizonte o regla supera
+el baseline y produce retorno ajustado por riesgo, con consistencia, en datos
+no usados para elegir?
+
+**Protocolo pre-registrado:** 1.500 velas reales por activo; 1.200 de desarrollo
+(hasta 2025-12-26) y 300 de holdout (2025-12-27 → 2026-10-22). Train 365 / test
+60 / step 60; costos 20 bps; 14 candidatos congelados; gate con log loss ≥0.005
+mejor que 50/50, ECE ≤0.05, Sharpe >0.5, ≥30 trades, DD ≤10 %, ≥60 % meses
+positivos y BTC/ETH positivos. Detalle completo en `docs/EXPERIMENTS.md`.
+
+**Desarrollo:** ningún candidato pasó el gate. El mejor log loss fue 0.6986
+(peor que 0.6931). El mejor Sharpe fue `logit_v03_h1_t60` (2.00, +56.7 %), pero
+con log loss 0.7032, ECE 0.058, DD 22.4 % y 59 % de meses positivos. Las reglas
+de momentum tuvieron Sharpe 0.98–0.99 y retornos altos, pero consistencia mensual
+de 30–32 % y drawdowns de 37–47 %. Buy & hold: +204.7 % con DD 63.8 %.
+
+**Holdout único de `logit_v03_h1_t60`:** log loss 0.6928 vs 0.6931 (mejora de
+0.0004, muy por debajo del margen), ECE 0.0258, Sharpe −0.69, retorno −7.35 %,
+DD 19.5 %, 50 % meses positivos, 0/2 activos positivos y 12 trades. **No pasa.**
+
+**Veredicto:** no hay ventaja demostrada con OHLCV diario en este periodo. No se
+promociona ninguna configuración nueva; el paper trading queda con la
+configuración actual y el plan de `docs/PAPER-EVALUATION.md` (≥30 operaciones
+cerradas, sin cambiar parámetros). Añadir más features al mismo dataset no es
+una hipótesis justificada; el siguiente experimento requiere datos nuevos
+(funding, open interest, on-chain u order book) o mantener `NO_TRADE`.
