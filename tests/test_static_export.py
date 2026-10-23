@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from datetime import UTC, datetime, timedelta
 
-from jobs.export_static import export_static
+from jobs.export_static import _risk_panel, export_static
 from src.data.store import Store
 from src.schemas.enums import Signal
 from tests.conftest import make_signal
@@ -103,4 +103,10 @@ def test_export_static_copies_latest_report(tmp_path):
     assert (out / "reports" / "reporte-2026-10-22.md").read_text(encoding="utf-8") == "nuevo"
     assert not (out / "reports" / "reporte-2026-10-21.md").exists()
     assert 'href="reports/reporte-2026-10-22.md"' in index.read_text(encoding="utf-8")
+
+
+
+def test_risk_panel_shows_effective_data_age_tolerance() -> None:
+    html = _risk_panel()
+    assert '2160 min (36.0 h)' in html
 
