@@ -27,8 +27,8 @@ El panel también se publica como **PWA** en GitHub Pages:
 - Se actualiza sola todos los días: GitHub Actions corre la ingesta, el motor,
   el paper trading y el exportador, y publica el sitio.
 - No necesita la PC encendida ni la misma red.
-- Horario: `15 0 * * *` UTC (después del cierre diario de Binance). GitHub puede
-  demorar el cron unos minutos.
+- El workflow se intenta **cada hora a los :15 UTC** y solo ejecuta el motor si
+  todavía no hay datos de hoy. Así cubre demoras de GitHub y evita duplicados.
 - Costo: **USD 0** (repositorio público; GitHub Actions y Pages incluidos).
 - Es una **vista móvil de solo lectura** generada desde la misma SQLite. El panel
   Streamlit completo sigue disponible en local.
@@ -44,7 +44,9 @@ El panel también se publica como **PWA** en GitHub Pages:
 
 ### Cómo se actualiza
 
-- Workflow: `.github/workflows/daily.yml` (`schedule` + `workflow_dispatch`).
+- Workflow: `.github/workflows/daily.yml` (`schedule` cada hora + `workflow_dispatch`).
+- El paso de control lee `var/trading.db`: si ya hay una señal con fecha de hoy,
+  omite el motor y no duplica datos; igual regenera y publica el sitio.
 - Corre `python -m jobs.daily_run --live` con `BINANCE_BASE_URL` apuntando al
   mirror público `https://data-api.binance.vision/api/v3` (evita bloqueos
   geográficos de los runners).
@@ -57,6 +59,8 @@ Disparo manual:
 
 ```powershell
 gh workflow run daily.yml --repo JoseAn03/trading-ai
+# forzar una corrida aunque ya existan datos de hoy:
+gh workflow run daily.yml --repo JoseAn03/trading-ai -f force=true
 gh run list --repo JoseAn03/trading-ai --limit 3
 ```
 
@@ -215,7 +219,7 @@ python -m backtests.compare_features --source live --days 1500 --feature-sets v0
 - **Barrido de horizontes 1–7 días: también sin ventaja.** El deterioro es monótono; no era un problema de horizonte.
 - **A/B de features de régimen (v0.2): peor que v0.1** en log loss, calibración y retorno. Ver `docs/BACKTEST-RESULTS.md`.
 - **GitHub Pages es público y sin login.** Cualquiera con la URL puede leer el panel.
-- **El cron de GitHub Actions puede demorarse.** El sitio muestra la antigüedad del dato y avisa si supera 36 h.
+- **El cron de GitHub Actions puede demorarse.** Se reintenta cada hora y el sitio muestra la antigüedad del dato; avisa si supera 36 h.
 - **La PWA no es una app nativa:** es un sitio instalable; necesita internet para actualizarse.
 
 ## Próximos pasos

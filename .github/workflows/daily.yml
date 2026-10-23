@@ -2,8 +2,13 @@ name: daily
 
 on:
   schedule:
-    - cron: "15 0 * * *"
+    - cron: "15 * * * *"
   workflow_dispatch:
+    inputs:
+      force:
+        description: "Forzar corrida aunque ya existan datos de hoy"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -38,7 +43,36 @@ jobs:
       - name: Install
         run: python -m pip install -e .
 
+      - name: Check if daily run is needed
+        id: check
+        run: |
+          python - <<'PY'
+          import datetime as dt
+          import os
+          import sqlite3
+          from pathlib import Path
+
+          today = dt.datetime.now(dt.UTC).date().isoformat()
+          database = Path("var/trading.db")
+          latest = ""
+          if database.exists():
+              try:
+                  connection = sqlite3.connect(database)
+                  try:
+                      row = connection.execute("SELECT MAX(timestamp) FROM signals").fetchone()
+                  finally:
+                      connection.close()
+                  latest = (row[0] or "")[:10] if row else ""
+              except sqlite3.Error:
+                  latest = ""
+          needed = latest != today
+          print(f"today={today} latest_signal={latest or 'none'} needed={needed}")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"needed={'true' if needed else 'false'}\n")
+          PY
+
       - name: Check market data endpoint
+        if: steps.check.outputs.needed == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.force == 'true')
         run: |
           python - <<'PY'
           import os
@@ -56,11 +90,13 @@ jobs:
           PY
 
       - name: Run daily engine
+        if: steps.check.outputs.needed == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.force == 'true')
         run: |
           mkdir -p var/reports
           python -m jobs.daily_run --live
 
       - name: Snapshot SQLite
+        if: steps.check.outputs.needed == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.force == 'true')
         run: |
           python - <<'PY'
           import os
@@ -95,6 +131,7 @@ jobs:
         run: python -m jobs.export_static --out dist
 
       - name: Persist state
+        if: steps.check.outputs.needed == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.force == 'true')
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

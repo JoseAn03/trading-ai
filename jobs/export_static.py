@@ -746,6 +746,11 @@ def export_static(*, store: Store, out_dir: Path, reports_dir: Path, now: dateti
         (_ts(row.get("data_timestamp")) for row in signals if row.get("data_timestamp")),
         default=None,
     )
+    latest_signal = max(
+        (_ts(row.get("timestamp")) for row in signals if row.get("timestamp")),
+        default=None,
+    )
+    updated_at = latest_signal or stamp
     data_age = ""
     stale = False
     if latest_data:
@@ -765,7 +770,7 @@ def export_static(*, store: Store, out_dir: Path, reports_dir: Path, now: dateti
             _kpi("Activos", str(len(signals))),
             _kpi("Accionables", str(len(actionable))),
             _kpi("Paper equity", _money(stats.equity)),
-            _kpi("Actualizado", f"{stamp:%d %b %H:%M}", "UTC"),
+            _kpi("Actualizado", f"{updated_at:%d %b %H:%M}", "UTC"),
         ]
     )
 
@@ -825,7 +830,7 @@ def export_static(*, store: Store, out_dir: Path, reports_dir: Path, now: dateti
   </main>
 
   <footer>
-    Generado {_safe(stamp.strftime("%d %b %Y %H:%M UTC"))} desde SQLite.
+    Sitio generado {_safe(stamp.strftime("%d %b %Y %H:%M UTC"))} desde SQLite.
     No es asesoria financiera. Sin claves, sin ordenes, sin capital real.
     <br>En el celular: menu del navegador → "Agregar a la pantalla de inicio".
   </footer>
