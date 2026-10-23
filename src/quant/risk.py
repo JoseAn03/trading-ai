@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from src.data.quality import data_age_tolerance_minutes
 from src.schemas.enums import Signal
 from src.schemas.signal import SignalContract
 
@@ -21,6 +22,13 @@ class RiskLimits:
     max_trades_per_day: int = 5
     max_correlation: float = 0.8
     max_data_age_minutes: int = 20
+    # Cadencia esperada de la vela. Con 24 h la tolerancia efectiva es 36 h.
+    # Se comparte con src.data.quality para que calidad y riesgo no discrepen.
+    expected_interval_hours: float = 24.0
+
+    @property
+    def data_age_tolerance_minutes(self) -> float:
+        return data_age_tolerance_minutes(self.max_data_age_minutes, self.expected_interval_hours)
 
     @classmethod
     def conservative(cls) -> RiskLimits:
@@ -86,8 +94,12 @@ class CircuitBreaker:
             blocks.append("modelo fuera de rango de calibración")
 
         age = signal.age_minutes
-        if age > self.limits.max_data_age_minutes:
-            blocks.append(f"datos con {age:.0f} min de antigüedad (máx {self.limits.max_data_age_minutes})")
+        tolerance = self.limits.data_age_tolerance_minutes
+        if age > tolerance:
+            blocks.append(
+                f"datos con {age:.0f} min de antigüedad (máx {tolerance:.0f} min "
+                f"para velas de {self.limits.expected_interval_hours:g} h)"
+            )
 
         if state.trades_today >= self.limits.max_trades_per_day:
             blocks.append(f"límite de {self.limits.max_trades_per_day} operaciones/día alcanzado")

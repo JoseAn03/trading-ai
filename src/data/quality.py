@@ -8,10 +8,31 @@ from __future__ import annotations
 
 import math
 from datetime import datetime
-from statistics import mean, pstdev
+from statistics import median
 
 from src.schemas.enums import DataQuality
 from src.schemas.market import Candle, DataQualityReport
+
+# Un outlier solo veta el presente si está en las últimas velas. La referencia
+# es robusta (mediana/MAD) para que un evento viejo no contamine la escala.
+OUTLIER_RECENT_WINDOW = 5
+OUTLIER_LOOKBACK = 60
+OUTLIER_ROBUST_Z = 6.0
+OUTLIER_MIN_ABS_MOVE = 0.03
+
+
+def data_age_tolerance_minutes(
+    max_age_minutes: float, expected_interval_hours: float
+) -> float:
+    """Tolerancia de frescura, compartida por calidad y circuit breakers.
+
+    Para velas diarias, 20 minutos serían absurdos: el cierre siempre tiene al
+    menos unas horas. Se permite el mayor valor entre el límite configurado y
+    1.5 intervalos de vela. Un intervalo <= 0 desactiva la extensión (tests y
+    datos con cadencia arbitraria).
+    """
+    interval_allowance = max(0.0, expected_interval_hours) * 60 * 1.5
+    return max(float(max_age_minutes), interval_allowance)
 
 
 def _returns(candles: list[Candle]) -> list[float]:
@@ -20,6 +41,31 @@ def _returns(candles: list[Candle]) -> list[float]:
         for i in range(1, len(candles))
         if candles[i - 1].close > 0
     ]
+
+
+def _recent_outliers(ordered: list[Candle]) -> list[str]:
+    """Detecta anomalías solo en las últimas velas, contra una base robusta.
+
+    La media/desviación global castigaba para siempre un movimiento viejo ya
+    absorbido por el precio. Aquí la base es mediana/MAD de los retornos previos
+    y la inspección se limita a las últimas `OUTLIER_RECENT_WINDOW` velas.
+    """
+    rets = _returns(ordered)
+    if len(rets) < 10:
+        return []
+
+    outliers: list[str] = []
+    first = max(0, len(rets) - OUTLIER_RECENT_WINDOW)
+    for i in range(first, len(rets)):
+        baseline = rets[max(0, i - OUTLIER_LOOKBACK) : i]
+        if len(baseline) < 10:
+            continue
+        center = median(baseline)
+        mad = median(abs(r - center) for r in baseline) * 1.4826
+        deviation = abs(rets[i] - center)
+        if deviation > OUTLIER_ROBUST_Z * max(mad, 1e-9) and deviation >= OUTLIER_MIN_ABS_MOVE:
+            outliers.append(f"retorno anómalo {rets[i] * 100:+.1f}% en {ordered[i + 1].ts.date()}")
+    return outliers
 
 
 def validate_series(
@@ -43,8 +89,7 @@ def validate_series(
 
     ordered = sorted(candles, key=lambda c: c.ts)
     age_minutes = max(0.0, (now - ordered[-1].ts).total_seconds() / 60.0)
-    # Tolerancia: la edad máxima configurada o 1.5 intervalos esperados.
-    tolerance = max(float(max_age_minutes), expected_interval_hours * 60 * 1.5)
+    tolerance = data_age_tolerance_minutes(max_age_minutes, expected_interval_hours)
     is_fresh = age_minutes <= tolerance
 
     gaps: list[str] = []
@@ -57,11 +102,7 @@ def validate_series(
     outliers: list[str] = []
     rets = _returns(ordered)
     if len(rets) >= 10:
-        sd = pstdev(rets) or 1e-9
-        mu = mean(rets)
-        for i, r in enumerate(rets, start=1):
-            if abs(r - mu) > 6 * sd:
-                outliers.append(f"retorno anómalo {r * 100:+.1f}% en {ordered[i].ts.date()}")
+        outliers = _recent_outliers(ordered)
 
     issues: list[str] = []
     if len(ordered) < min_candles:
