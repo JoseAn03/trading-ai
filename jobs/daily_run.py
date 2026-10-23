@@ -149,7 +149,7 @@ def run(*, live: bool = False, settings: Settings | None = None, out_dir: Path |
         batch.model_dump_json(indent=2), encoding="utf-8"
     )
 
-    store.audit("daily_run", "report_generated", str(report_path))
+    store.audit("daily_run", "report_generated", report_path.name)
 
     explanation = explain_daily(
         batch=batch,
