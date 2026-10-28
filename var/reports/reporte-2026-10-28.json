@@ -1,0 +1,79 @@
+{
+  "generated_at": "2026-10-28T01:23:07.979124Z",
+  "horizon": "24h",
+  "signals": [
+    {
+      "asset": "BTC",
+      "horizon": "24h",
+      "timestamp": "2026-10-28T01:23:07.979124Z",
+      "data_timestamp": "2026-10-27T23:59:59.999000Z",
+      "signal": "NO_TRADE",
+      "probability_up": 0.4502,
+      "probability_down": 0.5498,
+      "probability_net_positive": 0.3654,
+      "expected_return_net": -0.003493,
+      "confidence": "high",
+      "rank_score": 0.3559,
+      "rank_position": 1,
+      "reasons": [
+        "Tendencia bajista (SMA rápida -1.51% bajo lenta)"
+      ],
+      "invalidators": [
+        "Cierre por debajo de 81183.09 (2% bajo SMA lenta)",
+        "Volatilidad 20d por encima de 5.0%"
+      ],
+      "costs": {
+        "estimated_slippage_bps": 4.0,
+        "commission_bps": 6.0,
+        "funding_impact": 0.0002
+      },
+      "risk": {
+        "suggested_size_pct": 0.0,
+        "max_drawdown_estimate": 0.0259,
+        "correlation_with_portfolio": 0.0
+      },
+      "data_quality": "valid",
+      "model_version": "baseline-v0.1",
+      "code_version": "dev",
+      "is_actionable": false
+    },
+    {
+      "asset": "ETH",
+      "horizon": "24h",
+      "timestamp": "2026-10-28T01:23:07.979124Z",
+      "data_timestamp": "2026-10-27T23:59:59.999000Z",
+      "signal": "RISK_OFF",
+      "probability_up": 0.3493,
+      "probability_down": 0.6507,
+      "probability_net_positive": 0.2866,
+      "expected_return_net": -0.007489,
+      "confidence": "high",
+      "rank_score": 0.2765,
+      "rank_position": 2,
+      "reasons": [
+        "Tendencia bajista (SMA rápida -4.91% bajo lenta)",
+        "Precio por debajo de la SMA lenta (-6.4%)"
+      ],
+      "invalidators": [
+        "Cierre por debajo de 2461.31 (2% bajo SMA lenta)",
+        "Volatilidad 20d por encima de 5.0%"
+      ],
+      "costs": {
+        "estimated_slippage_bps": 4.0,
+        "commission_bps": 6.0,
+        "funding_impact": 0.0002
+      },
+      "risk": {
+        "suggested_size_pct": 0.0,
+        "max_drawdown_estimate": 0.0351,
+        "correlation_with_portfolio": 0.0
+      },
+      "data_quality": "valid",
+      "model_version": "baseline-v0.1",
+      "code_version": "dev",
+      "is_actionable": false
+    }
+  ],
+  "model_version": "baseline-v0.1",
+  "code_version": "dev"
+}
