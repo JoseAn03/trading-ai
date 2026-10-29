@@ -14,10 +14,10 @@ gh workflow run daily.yml --repo JoseAn03/trading-ai -f force=true
 gh run list --repo JoseAn03/trading-ai --limit 5
 ```
 
-**Estado real del cron:** en las pruebas de octubre de 2026 GitHub no ejecutó el
-`schedule` ni con un cron horario ni con uno temporal cada 5 minutos. Las ocho
-corridas observadas fueron manuales. El workflow está activo y el disparo manual
-funciona; no se debe asumir que la actualización automática está resuelta.
+**Estado real del cron (29 Oct 2026):** el `schedule` ya se disparó en las
+corridas observadas del 24 al 29 de octubre y publicó estado diario; las
+corridas recientes terminaron en verde. El workflow sigue teniendo el disparo
+manual como respaldo por si GitHub deja de ejecutar el `schedule`.
 
 El botón **Actualizar** del panel abre el workflow. Sin `force=true`, la guardia
 respeta los datos ya procesados de hoy y **no vuelve a publicar** el sitio. Para

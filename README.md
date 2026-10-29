@@ -39,11 +39,10 @@ El panel también se publica como **PWA** en GitHub Pages:
   como secret de GitHub Actions y nunca llega al navegador. Sin token, la
   explicación es determinista.
 
-> **Estado del cron (23 Oct 2026):** GitHub no disparó el `schedule` en las
-> pruebas iniciales de este repositorio nuevo. El workflow quedó activo y el
-> disparo manual funciona; por eso el panel incluye el enlace **Actualizar** y
-> esta guía. El cron se reintenta cada hora cuando GitHub lo active. Checklist
-> de Settings en `docs/OPERATIONS.md`.
+> **Estado del cron (29 Oct 2026):** el `schedule` ya se disparó y publicó estado
+> diario en las corridas observadas del 24 al 29 de octubre; las corridas
+> recientes terminaron en verde. El botón **Actualizar** sigue disponible como
+> respaldo. Checklist de Settings en `docs/OPERATIONS.md`.
 
 ### Actualizar desde el celular
 
@@ -68,10 +67,10 @@ El panel también se publica como **PWA** en GitHub Pages:
 - Workflow: `.github/workflows/daily.yml` (`schedule` cada hora + `workflow_dispatch`).
 - El paso de control lee `var/trading.db`: si ya hay una señal con fecha UTC de
   hoy, omite motor, exportación y despliegue. No duplica datos ni publica de más.
-- El `schedule` no se disparó en las pruebas iniciales; el botón **Actualizar** y
-  el comando `gh workflow run` son la vía confiable por ahora. Sin `force`, una
-  corrida manual respeta el control y no publica; para actualizar a mano hay que
-  usar `-f force=true`.
+- El `schedule` se disparó y publicó estado diario en las corridas observadas
+  del 24 al 29 de octubre. El botón **Actualizar** y el comando `gh workflow run`
+  siguen como respaldo manual. Sin `force`, una corrida manual respeta el control
+  y no publica; para actualizar a mano hay que usar `-f force=true`.
 - **Día operativo UTC:** las velas diarias de Binance cierran a 00:00 UTC, que en
   Costa Rica son las 18:00. La guardia usa fecha UTC a propósito; no es un bug.
   Ver `docs/OPERATIONS.md` y la lista de ajustes de Actions que debe revisar el
