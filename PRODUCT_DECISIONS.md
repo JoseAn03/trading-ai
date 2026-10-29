@@ -55,3 +55,4 @@ Documento vivo. Cualquier cambio de alcance se anota aquí **antes** de tocar c�
 | 2026-10-22 | Costos fijados en 6+4 bps ida y vuelta | Alinear con exchange minorista típico |
 | 2026-10-22 | Paper trading persistente en sombra, sin capital | Congelar la señal antes del resultado |
 | 2026-10-22 | Explicación determinista + LLM validado; entrega opcional | El LLM redacta, nunca decide |
+| 2026-10-28 | Token de IA conectable en Actions vía secret; sin token se usa el fallback determinista | Activar el análisis sin exponer la clave ni dar control al modelo |

@@ -217,13 +217,16 @@ def run(
         )
 
     log.info(
-        "reporte: %s | %s | paper abiertos=%s cerrados=%s equity=%.4f | explicacion=%s",
+        "reporte: %s | %s | paper abiertos=%s cerrados=%s equity=%.4f | "
+        "explicacion=%s motivo=%s costo_usd=%.6f",
         report_path,
         batch.summarise(),
         stats.open_trades,
         stats.trades,
         stats.equity,
         explanation.kind,
+        explanation.fallback_reason or "ok",
+        explanation.cost_usd,
     )
 
     return {

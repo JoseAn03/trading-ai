@@ -30,10 +30,13 @@ El panel también se publica como **PWA** en GitHub Pages:
   que solo ejecuta el motor si todavía no hay datos de hoy. Así evita duplicados
   y, si GitHub demora un intento, el siguiente lo reintenta. Si no hay corrida,
   tampoco vuelve a desplegar el sitio.
-- Costo: **USD 0** (repositorio público; GitHub Actions y Pages incluidos).
+- Costo: **USD 0** de infraestructura (repositorio público; GitHub Actions y
+  Pages incluidos). Si activas la IA, el proveedor cobra aparte; el sistema
+  estima el gasto y aplica un techo mensual.
 - Es una **vista móvil de solo lectura** generada desde la misma SQLite. El panel
   Streamlit completo sigue disponible en local.
-- No incluye claves ni ejecución real. En la nube el LLM está apagado: la
+- No incluye claves ni ejecución real. El token de IA, si lo configuras, vive
+  como secret de GitHub Actions y nunca llega al navegador. Sin token, la
   explicación es determinista.
 
 > **Estado del cron (23 Oct 2026):** GitHub no disparó el `schedule` en las
@@ -199,6 +202,29 @@ Cada corrida guarda una explicación en la tabla `explanations`, siempre en dos 
 El LLM no calcula, no decide y no cambia señales, tamaños ni riesgo. El costo estimado
 de cada llamada se registra y hay un techo mensual (`TRADING_LLM_MONTHLY_BUDGET_USD`).
 La explicación se ve en la pestaña **Explicación** del panel.
+
+### Activar la IA con un token
+
+La IA no corre en el navegador ni recibe claves de exchange. GitHub Actions
+ejecuta el motor, guarda el JSON ya calculado y, si hay token, pide al proveedor
+un texto validado. El token va en **Settings → Secrets and variables → Actions**
+como `TRADING_LLM_API_KEY`; nunca en `.env` versionado, en `dist/` ni en el código.
+
+1. Crea un token en un proveedor con endpoint compatible con OpenAI
+   (`/chat/completions`).
+2. Agrega el secret `TRADING_LLM_API_KEY`.
+3. Opcionalmente define variables: `TRADING_LLM_MODEL`,
+   `TRADING_LLM_BASE_URL`, `TRADING_LLM_MONTHLY_BUDGET_USD`,
+   `TRADING_LLM_JSON_MODE` y las tarifas de costo.
+4. Ejecuta el workflow con `force=true` y abre **Explicación** en la PWA.
+   El badge debe decir `LLM`; si dice `determinista`, la PWA muestra el
+   `fallback_reason`.
+5. Local: copia `.env.example` a `.env`, activa `TRADING_LLM_ENABLED=true`,
+   pon el token y corre `python -m jobs.daily_run --live --llm`.
+
+La IA solo redacta el JSON que ya calculó el motor: no calcula señales,
+probabilidades, tamaños ni riesgo. Si el proveedor falla, se publica la
+explicación determinista. Guía detallada: `docs/OPERATIONS.md`.
 
 Con `TRADING_TELEGRAM_ENABLED=true`, `TRADING_TELEGRAM_BOT_TOKEN` y
 `TRADING_TELEGRAM_CHAT_ID`, también se envía por Telegram. Sin credenciales no se envía nada.

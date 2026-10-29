@@ -717,6 +717,14 @@ def _explanation_panel(store: Store) -> str:
         body = {}
     kind = "LLM" if record["kind"] == "llm" else "determinista"
     badge = "llm" if record["kind"] == "llm" else "warn"
+    fallback = record.get("fallback_reason") or ""
+    fallback_note = ""
+    if record["kind"] != "llm" and fallback:
+        fallback_note = (
+            f'<div class="notice small" style="margin:10px 0">'
+            f"IA no aplicada (<code>{_safe(fallback)}</code>). "
+            "Se muestra la explicacion determinista.</div>"
+        )
     opportunities = body.get("top_opportunities") or []
     notes = body.get("no_trade_notes") or []
     opp_html = "".join(
@@ -729,6 +737,7 @@ def _explanation_panel(store: Store) -> str:
         f'<div class="small muted">Explicacion <span class="badge {badge}">{_safe(kind)}</span> · '
         f'{_safe(record["model"])} · prompt {_safe(record["prompt_version"])} · '
         f'{_safe(_fmt_ts(record["generated_at"], "%d %b %H:%M"))}</div>'
+        f'{fallback_note}'
         f'<h2>{_safe(body.get("subject", "Explicacion"))}</h2>'
         f'<p>{_safe(body.get("executive_summary", ""))}</p>'
         + (f"<h3>Oportunidades</h3><ul>{opp_html}</ul>" if opp_html else "")
