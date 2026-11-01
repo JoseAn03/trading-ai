@@ -1,0 +1,80 @@
+{
+  "generated_at": "2026-11-01T01:10:59.127143Z",
+  "horizon": "24h",
+  "signals": [
+    {
+      "asset": "BTC",
+      "horizon": "24h",
+      "timestamp": "2026-11-01T01:10:59.127143Z",
+      "data_timestamp": "2026-10-31T23:59:59.999000Z",
+      "signal": "RISK_OFF",
+      "probability_up": 0.2798,
+      "probability_down": 0.7202,
+      "probability_net_positive": 0.2052,
+      "expected_return_net": -0.008694,
+      "confidence": "medium",
+      "rank_score": 0.1593,
+      "rank_position": 1,
+      "reasons": [
+        "Tendencia bajista (SMA rápida -2.71% bajo lenta)",
+        "Precio por debajo de la SMA lenta (-5.5%)"
+      ],
+      "invalidators": [
+        "Cierre por debajo de 80484.64 (2% bajo SMA lenta)",
+        "Volatilidad 20d por encima de 5.0%"
+      ],
+      "costs": {
+        "estimated_slippage_bps": 4.0,
+        "commission_bps": 6.0,
+        "funding_impact": 0.0002
+      },
+      "risk": {
+        "suggested_size_pct": 0.0,
+        "max_drawdown_estimate": 0.0295,
+        "correlation_with_portfolio": 0.0
+      },
+      "data_quality": "valid",
+      "model_version": "baseline-v0.1",
+      "code_version": "dev",
+      "is_actionable": false
+    },
+    {
+      "asset": "ETH",
+      "horizon": "24h",
+      "timestamp": "2026-11-01T01:10:59.127143Z",
+      "data_timestamp": "2026-10-31T23:59:59.999000Z",
+      "signal": "RISK_OFF",
+      "probability_up": 0.2107,
+      "probability_down": 0.7893,
+      "probability_net_positive": 0.1485,
+      "expected_return_net": -0.012433,
+      "confidence": "medium",
+      "rank_score": 0.1146,
+      "rank_position": 2,
+      "reasons": [
+        "Tendencia bajista (SMA rápida -5.34% bajo lenta)",
+        "Precio por debajo de la SMA lenta (-8.2%)"
+      ],
+      "invalidators": [
+        "Cierre por debajo de 2407.57 (2% bajo SMA lenta)",
+        "Volatilidad 20d por encima de 5.0%"
+      ],
+      "costs": {
+        "estimated_slippage_bps": 4.0,
+        "commission_bps": 6.0,
+        "funding_impact": 0.0002
+      },
+      "risk": {
+        "suggested_size_pct": 0.0,
+        "max_drawdown_estimate": 0.0354,
+        "correlation_with_portfolio": 0.0
+      },
+      "data_quality": "valid",
+      "model_version": "baseline-v0.1",
+      "code_version": "dev",
+      "is_actionable": false
+    }
+  ],
+  "model_version": "baseline-v0.1",
+  "code_version": "dev"
+}
