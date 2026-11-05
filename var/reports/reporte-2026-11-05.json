@@ -1,0 +1,83 @@
+{
+  "generated_at": "2026-11-05T06:47:52.704619Z",
+  "horizon": "24h",
+  "signals": [
+    {
+      "asset": "ETH",
+      "horizon": "24h",
+      "timestamp": "2026-11-05T06:47:52.704619Z",
+      "data_timestamp": "2026-11-04T23:59:59.999000Z",
+      "signal": "NO_TRADE",
+      "probability_up": 0.5492,
+      "probability_down": 0.4508,
+      "probability_net_positive": 0.4968,
+      "expected_return_net": -0.000133,
+      "confidence": "high",
+      "rank_score": 0.4759,
+      "rank_position": 1,
+      "reasons": [
+        "Tendencia bajista (SMA rápida -4.28% bajo lenta)",
+        "Momentum 10d positivo (+4.1%)",
+        "Volumen relativo 1.51x sobre su media"
+      ],
+      "invalidators": [
+        "Cierre por debajo de 2356.45 (2% bajo SMA lenta)",
+        "Volatilidad 20d por encima de 5.0%",
+        "Gap de volumen > 15 min sin explicación"
+      ],
+      "costs": {
+        "estimated_slippage_bps": 4.0,
+        "commission_bps": 6.0,
+        "funding_impact": 0.0002
+      },
+      "risk": {
+        "suggested_size_pct": 0.0,
+        "max_drawdown_estimate": 0.042,
+        "correlation_with_portfolio": 0.0
+      },
+      "data_quality": "valid",
+      "model_version": "baseline-v0.1",
+      "code_version": "dev",
+      "is_actionable": false
+    },
+    {
+      "asset": "BTC",
+      "horizon": "24h",
+      "timestamp": "2026-11-05T06:47:52.704619Z",
+      "data_timestamp": "2026-11-04T23:59:59.999000Z",
+      "signal": "NO_TRADE",
+      "probability_up": 0.5422,
+      "probability_down": 0.4578,
+      "probability_net_positive": 0.4762,
+      "expected_return_net": -0.000793,
+      "confidence": "high",
+      "rank_score": 0.4603,
+      "rank_position": 2,
+      "reasons": [
+        "Tendencia bajista (SMA rápida -2.87% bajo lenta)",
+        "Volumen relativo 1.61x sobre su media"
+      ],
+      "invalidators": [
+        "Cierre por debajo de 79555.58 (2% bajo SMA lenta)",
+        "Volatilidad 20d por encima de 5.0%",
+        "Gap de volumen > 15 min sin explicación"
+      ],
+      "costs": {
+        "estimated_slippage_bps": 4.0,
+        "commission_bps": 6.0,
+        "funding_impact": 0.0002
+      },
+      "risk": {
+        "suggested_size_pct": 0.0,
+        "max_drawdown_estimate": 0.0333,
+        "correlation_with_portfolio": 0.0
+      },
+      "data_quality": "valid",
+      "model_version": "baseline-v0.1",
+      "code_version": "dev",
+      "is_actionable": false
+    }
+  ],
+  "model_version": "baseline-v0.1",
+  "code_version": "dev"
+}
